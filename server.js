@@ -1,0 +1,1528 @@
+import express from "express";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import PDFDocument from "pdfkit";
+import {
+  allocateByWeight,
+  buildAppState,
+  createValidationError,
+  normalizeMoroccanPhone,
+  optionalString,
+  requireInteger,
+  requireNumber,
+  requireString,
+  toRecordDate,
+} from "./lib/metrics.js";
+import { renderInvoiceHtml } from "./lib/invoice-template.js";
+import { createId, isDatabaseStoreEnabled, readStore, updateStore } from "./lib/store.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDirectory = path.join(__dirname, "public", "uploads");
+const app = express();
+const port = process.env.PORT || 3000;
+const SESSION_COOKIE_NAME = "abg_session";
+const sessions = new Map();
+
+const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
+const paymentStatuses = new Set(["non_payee", "payee"]);
+const shipmentStatuses = new Set([
+  "achete",
+  "en_preparation",
+  "envoye",
+  "chez_transporteur",
+  "recu",
+]);
+const carriers = new Set(["Achraf", "Malak", "Marouane", "Ozon Express", "Autres"]);
+
+function asyncRoute(handler) {
+  return function wrappedHandler(request, response, next) {
+    Promise.resolve(handler(request, response, next)).catch(next);
+  };
+}
+
+function sanitizeUser(user) {
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    login: user.login,
+    displayName: user.displayName,
+    canManageUsers: canManageUsers(user),
+  };
+}
+
+function sanitizeManagedUser(user) {
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    login: user.login,
+    displayName: user.displayName,
+    canManageUsers: canManageUsers(user),
+    createdAt: user.createdAt || null,
+  };
+}
+
+function parseCookies(cookieHeader = "") {
+  return Object.fromEntries(
+    cookieHeader
+      .split(";")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const separatorIndex = entry.indexOf("=");
+        const key = separatorIndex >= 0 ? entry.slice(0, separatorIndex) : entry;
+        const value = separatorIndex >= 0 ? entry.slice(separatorIndex + 1) : "";
+        return [key, decodeURIComponent(value)];
+      }),
+  );
+}
+
+function createCookie(name, value, options = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+
+  if (options.httpOnly !== false) {
+    parts.push("HttpOnly");
+  }
+
+  parts.push("Path=/");
+  parts.push(`SameSite=${options.sameSite || "Lax"}`);
+
+  if (options.maxAge !== undefined) {
+    parts.push(`Max-Age=${options.maxAge}`);
+  }
+
+  return parts.join("; ");
+}
+
+function getSessionToken(request) {
+  return parseCookies(request.headers.cookie)[SESSION_COOKIE_NAME] || "";
+}
+
+function getAuthenticatedUser(request, store) {
+  const sessionToken = getSessionToken(request);
+  const session = sessions.get(sessionToken);
+
+  if (!session) {
+    return null;
+  }
+
+  return store.users.find((user) => user.id === session.userId) || null;
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  const passwordHash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return {
+    passwordSalt: salt,
+    passwordHash,
+  };
+}
+
+function verifyPassword(password, user) {
+  const candidateHash = crypto.scryptSync(password, user.passwordSalt, 64);
+  const storedHash = Buffer.from(user.passwordHash, "hex");
+
+  if (candidateHash.length !== storedHash.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(candidateHash, storedHash);
+}
+
+function canManageUsers(user) {
+  return Boolean(user && (user.isAdmin === true || user.login === "mdotnani"));
+}
+
+function startSession(response, userId) {
+  const sessionToken = crypto.randomUUID();
+  sessions.set(sessionToken, {
+    userId,
+    createdAt: new Date().toISOString(),
+  });
+  response.setHeader(
+    "Set-Cookie",
+    createCookie(SESSION_COOKIE_NAME, sessionToken, {
+      maxAge: 60 * 60 * 24 * 30,
+    }),
+  );
+}
+
+function endSession(request, response) {
+  const sessionToken = getSessionToken(request);
+
+  if (sessionToken) {
+    sessions.delete(sessionToken);
+  }
+
+  response.setHeader(
+    "Set-Cookie",
+    createCookie(SESSION_COOKIE_NAME, "", {
+      maxAge: 0,
+    }),
+  );
+}
+
+function buildPublicState(store, request) {
+  const state = buildAppState(store);
+  const user = getAuthenticatedUser(request, store);
+
+  return {
+    ...state,
+    auth: {
+      isAuthenticated: Boolean(user),
+      requiresSetup: store.users.length === 0,
+      user: sanitizeUser(user),
+    },
+  };
+}
+
+function readPagination(query) {
+  const page = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
+  const pageSize = Math.min(
+    50,
+    Math.max(1, Number.parseInt(query.pageSize || "10", 10) || 10),
+  );
+
+  return {
+    page,
+    pageSize,
+  };
+}
+
+function createForbiddenError(message) {
+  const error = new Error(message);
+  error.status = 403;
+  return error;
+}
+
+function paginateItems(items, query) {
+  const { page, pageSize } = readPagination(query);
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+
+  return {
+    items: items.slice(start, start + pageSize),
+    pagination: {
+      page: safePage,
+      pageSize,
+      totalItems,
+      totalPages,
+      hasPreviousPage: safePage > 1,
+      hasNextPage: safePage < totalPages,
+    },
+  };
+}
+
+function assertNonNegativeStocks(store) {
+  const state = buildAppState(store);
+  const invalidProduct = state.products.find(
+    (product) => product.metrics.franceStock < 0 || product.metrics.moroccoStock < 0,
+  );
+
+  if (invalidProduct) {
+    throw createValidationError(
+      `Cette modification rend le stock négatif pour "${invalidProduct.name}".`,
+    );
+  }
+}
+
+function requireCarrier(value) {
+  const carrierName = requireString(value, "Transporteur");
+
+  if (!carriers.has(carrierName)) {
+    throw createValidationError("Le transporteur est invalide.");
+  }
+
+  return carrierName;
+}
+
+function requirePersonnelAdmin(user) {
+  if (!canManageUsers(user)) {
+    throw createForbiddenError("Seul le compte Mdotnani peut gérer le personnel.");
+  }
+}
+
+function requireAuthenticatedApi(request, response, next) {
+  if (request.path === "/health" || request.path.startsWith("/auth/")) {
+    return next();
+  }
+
+  readStore()
+    .then((store) => {
+      const user = getAuthenticatedUser(request, store);
+
+      if (!user) {
+        response.status(401).json({
+          message: "Authentification requise.",
+          code: "AUTH_REQUIRED",
+        });
+        return;
+      }
+
+      request.authUser = user;
+      request.authStore = store;
+      next();
+    })
+    .catch(next);
+}
+
+function findProduct(productId, store) {
+  const product = store.products.find((entry) => entry.id === productId);
+
+  if (!product) {
+    throw createValidationError("Un produit sélectionné n'existe pas ou plus.");
+  }
+
+  return product;
+}
+
+async function persistProductImage(upload, productId) {
+  if (!upload?.dataUrl) {
+    return "";
+  }
+
+  if (typeof upload.dataUrl !== "string") {
+    throw createValidationError("Le format de la photo produit est invalide.");
+  }
+
+  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
+
+  if (!match) {
+    throw createValidationError("La photo doit être convertie en WebP avant envoi.");
+  }
+
+  if (match[1].length > 6_000_000) {
+    throw createValidationError("La photo compressée reste trop lourde.");
+  }
+
+  if (isDatabaseStoreEnabled()) {
+    return upload.dataUrl;
+  }
+
+  await fs.mkdir(uploadsDirectory, { recursive: true });
+
+  const relativePath = `/uploads/${productId}.webp`;
+  const filePath = path.join(uploadsDirectory, `${productId}.webp`);
+
+  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+
+  return relativePath;
+}
+
+async function persistPurchaseInvoiceImage(upload, purchaseId) {
+  if (!upload?.dataUrl) {
+    return "";
+  }
+
+  if (typeof upload.dataUrl !== "string") {
+    throw createValidationError("Le format de la photo de facture est invalide.");
+  }
+
+  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
+
+  if (!match) {
+    throw createValidationError(
+      "La photo de facture doit être convertie en WebP avant envoi.",
+    );
+  }
+
+  if (match[1].length > 6_000_000) {
+    throw createValidationError("La photo de facture compressée reste trop lourde.");
+  }
+
+  if (isDatabaseStoreEnabled()) {
+    return upload.dataUrl;
+  }
+
+  await fs.mkdir(uploadsDirectory, { recursive: true });
+
+  const relativePath = `/uploads/${purchaseId}-invoice.webp`;
+  const filePath = path.join(uploadsDirectory, `${purchaseId}-invoice.webp`);
+
+  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+
+  return relativePath;
+}
+
+function readItemArray(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw createValidationError("Ajoute au moins une ligne produit.");
+  }
+
+  return value;
+}
+
+async function removeProductImage(imageUrl) {
+  if (!imageUrl || !imageUrl.startsWith("/uploads/")) {
+    return;
+  }
+
+  const fileName = path.basename(imageUrl);
+  const filePath = path.join(uploadsDirectory, fileName);
+  await fs.rm(filePath, { force: true });
+}
+
+function getProductMetricsMap(store) {
+  const state = buildAppState(store);
+  return new Map(state.products.map((product) => [product.id, product.metrics]));
+}
+
+function ensureStockAvailability(items, metricsById, stockKey, label) {
+  const requestedByProductId = new Map();
+
+  for (const item of items) {
+    requestedByProductId.set(
+      item.product.id,
+      (requestedByProductId.get(item.product.id) ?? 0) + item.qty,
+    );
+  }
+
+  for (const [productId, requestedQty] of requestedByProductId.entries()) {
+    const metric = metricsById.get(productId);
+    const availableQty = metric?.[stockKey] ?? 0;
+
+    if (availableQty < requestedQty) {
+      const productName = items.find((entry) => entry.product.id === productId)?.product.name;
+      throw createValidationError(
+        `Stock ${label} insuffisant pour "${productName}". Disponible: ${availableQty}.`,
+      );
+    }
+  }
+}
+
+function createNotFoundError(message) {
+  const error = new Error(message);
+  error.status = 404;
+  return error;
+}
+
+function createInitialStockPurchase(product, qty) {
+  const orderedAt = new Date().toISOString();
+  const lineTotalEur = Number((qty * product.defaultPurchasePriceEur).toFixed(2));
+
+  return {
+    id: createId("buy"),
+    supplierName: "Stock initial",
+    orderNumber: `INIT-${product.id}`,
+    orderedAt,
+    notes: "Créé automatiquement depuis le formulaire produit.",
+    items: [
+      {
+        productId: product.id,
+        qty,
+        unitPurchasePriceEur: product.defaultPurchasePriceEur,
+        lineTotalEur,
+        lineWeightKg: Number((qty * product.weightKg).toFixed(3)),
+      },
+    ],
+    totalQty: qty,
+    totalCostEur: lineTotalEur,
+    totalWeightKg: Number((qty * product.weightKg).toFixed(3)),
+  };
+}
+
+function productHasHistory(productId, store) {
+  const collections = [store.purchases, store.shipments, store.orders];
+
+  return collections.some((collection) =>
+    collection.some((entry) => (entry.items ?? []).some((item) => item.productId === productId)),
+  );
+}
+
+function findRecord(collection, recordId, label) {
+  const record = collection.find((entry) => entry.id === recordId);
+
+  if (!record) {
+    throw createNotFoundError(`${label} introuvable.`);
+  }
+
+  return record;
+}
+
+function buildPurchaseRecord(payload, store, recordId = createId("buy")) {
+  const items = readItemArray(payload.items).map((item) => {
+    const product = findProduct(item.productId, store);
+    const qty = requireInteger(item.qty, "Quantité achetée", { min: 1 });
+    const unitPurchasePriceEur = requireNumber(
+      item.unitPurchasePriceEur ?? product.defaultPurchasePriceEur,
+      "Prix unitaire d'achat",
+      { min: 0 },
+    );
+
+    return {
+      productId: product.id,
+      qty,
+      unitPurchasePriceEur,
+      lineTotalEur: Number((qty * unitPurchasePriceEur).toFixed(2)),
+      lineWeightKg: Number((qty * product.weightKg).toFixed(3)),
+    };
+  });
+
+  return {
+    id: recordId,
+    supplierName: requireString(payload.supplierName || "Action", "Fournisseur"),
+    orderNumber: optionalString(payload.orderNumber),
+    orderedAt: toRecordDate(payload.orderedAt),
+    notes: optionalString(payload.notes),
+    invoiceImageUrl: optionalString(payload.invoiceImageUrl),
+    items,
+    totalQty: items.reduce((total, item) => total + item.qty, 0),
+    totalCostEur: Number(items.reduce((total, item) => total + item.lineTotalEur, 0).toFixed(2)),
+    totalWeightKg: Number(
+      items.reduce((total, item) => total + item.lineWeightKg, 0).toFixed(3),
+    ),
+  };
+}
+
+function buildShipmentRecord(payload, store, recordId = createId("shp")) {
+  const metricsById = getProductMetricsMap(store);
+  const rawItems = readItemArray(payload.items).map((item) => {
+    const product = findProduct(item.productId, store);
+    const qty = requireInteger(item.qty, "Quantité envoyée", { min: 1 });
+    const metric = metricsById.get(product.id);
+
+    return {
+      product,
+      qty,
+      weightKg: Number((qty * product.weightKg).toFixed(3)),
+      avgPurchaseCostEur: metric.avgPurchaseCostEur,
+    };
+  });
+
+  const packageWeightKg = requireNumber(payload.packageWeightKg, "Poids du colis", {
+    min: 0.001,
+  });
+  const shippingPriceEur = requireNumber(payload.shippingPriceEur, "Prix du transport", {
+    min: 0,
+  });
+  const status = optionalString(payload.status || "achete");
+
+  if (!shipmentStatuses.has(status)) {
+    throw createValidationError("Le statut de l'envoi est invalide.");
+  }
+
+  const allocatedItems = allocateByWeight(rawItems, shippingPriceEur).map((item) => {
+    const unitShippingCostEur = Number((item.allocatedCostEur / item.qty).toFixed(2));
+    const unitLandedCostEur = Number(
+      (item.avgPurchaseCostEur + item.allocatedCostEur / item.qty).toFixed(2),
+    );
+
+    return {
+      productId: item.product.id,
+      qty: item.qty,
+      lineWeightKg: item.weightKg,
+      unitBaseCostEur: item.avgPurchaseCostEur,
+      shippingCostEur: item.allocatedCostEur,
+      unitShippingCostEur,
+      unitLandedCostEur,
+      totalLandedCostEur: Number(
+        (item.qty * item.avgPurchaseCostEur + item.allocatedCostEur).toFixed(2),
+      ),
+    };
+  });
+
+  return {
+    id: recordId,
+    shippedAt: toRecordDate(payload.shippedAt),
+    status,
+    responsibleName: "MALAK",
+    reference: optionalString(payload.reference),
+    packageWeightKg,
+    shippingPriceEur,
+    packageRatePerKgEur: Number((shippingPriceEur / packageWeightKg).toFixed(2)),
+    totalItemWeightKg: Number(
+      allocatedItems.reduce((total, item) => total + item.lineWeightKg, 0).toFixed(3),
+    ),
+    notes: optionalString(payload.notes),
+    items: allocatedItems,
+    totalQty: allocatedItems.reduce((total, item) => total + item.qty, 0),
+    totalLandedCostEur: Number(
+      allocatedItems.reduce((total, item) => total + item.totalLandedCostEur, 0).toFixed(2),
+    ),
+  };
+}
+
+function buildOrderRecord(payload, store, recordId = createId("ord")) {
+  const metricsById = getProductMetricsMap(store);
+  const eurToMad = store.settings.eurToMad;
+  const items = readItemArray(payload.items).map((item) => {
+    const product = findProduct(item.productId, store);
+    const qty = requireInteger(item.qty, "Quantité commandée", { min: 1 });
+    const metric = metricsById.get(product.id);
+    const unitSalePriceMad = requireNumber(
+      item.unitSalePriceMad ?? product.defaultSalePriceMad,
+      "Prix unitaire de vente MAD",
+      { min: 0 },
+    );
+    const unitCostEur = metric.avgLandedCostEur;
+    const unitCostMad = Number((unitCostEur * eurToMad).toFixed(2));
+    const lineRevenueMad = Number((qty * unitSalePriceMad).toFixed(2));
+    const lineCostMad = Number((qty * unitCostMad).toFixed(2));
+    const lineProfitMad = Number((lineRevenueMad - lineCostMad).toFixed(2));
+
+    return {
+      productId: product.id,
+      qty,
+      unitSalePriceMad,
+      unitCostEur,
+      unitCostMad,
+      lineRevenueMad,
+      lineCostMad,
+      lineProfitMad,
+      marginRate:
+        lineRevenueMad > 0 ? Number(((lineProfitMad / lineRevenueMad) * 100).toFixed(2)) : 0,
+    };
+  });
+
+  const status = optionalString(payload.status || "confirmee");
+
+  if (!orderStatuses.has(status)) {
+    throw createValidationError("Le statut de commande est invalide.");
+  }
+
+  const paymentStatus = optionalString(payload.paymentStatus || "non_payee");
+
+  if (!paymentStatuses.has(paymentStatus)) {
+    throw createValidationError("Le statut de paiement est invalide.");
+  }
+
+  const deliveryPriceMad = requireNumber(payload.deliveryPriceMad ?? 0, "Prix de livraison MAD", {
+    min: 0,
+  });
+  const carrierName = requireCarrier(payload.carrierName);
+  const itemsRevenueMad = Number(
+    items.reduce((total, item) => total + item.lineRevenueMad, 0).toFixed(2),
+  );
+  const totalRevenueMad = Number((itemsRevenueMad + deliveryPriceMad).toFixed(2));
+  const totalCostMad = Number(items.reduce((total, item) => total + item.lineCostMad, 0).toFixed(2));
+  const totalProfitMad = Number((totalRevenueMad - totalCostMad).toFixed(2));
+
+  return {
+    id: recordId,
+    orderedAt: toRecordDate(payload.orderedAt),
+    status,
+    paymentStatus,
+    paidAt: paymentStatus === "payee" ? new Date().toISOString() : null,
+    carrierName,
+    deliveryPriceMad,
+    customer: {
+      name: requireString(payload.customerName, "Nom client"),
+      phone: normalizeMoroccanPhone(payload.customerPhone),
+      city: requireString(payload.customerCity, "Ville"),
+      address: requireString(payload.customerAddress, "Adresse"),
+    },
+    notes: optionalString(payload.notes),
+    items,
+    totalQty: items.reduce((total, item) => total + item.qty, 0),
+    itemsRevenueMad,
+    totalRevenueMad,
+    totalCostMad,
+    totalProfitMad,
+    marginRate:
+      totalRevenueMad > 0 ? Number(((totalProfitMad / totalRevenueMad) * 100).toFixed(2)) : 0,
+  };
+}
+
+function writeInvoicePdf(response, order, settings, options = {}) {
+  const download = options.download !== false;
+  const doc = new PDFDocument({
+    size: "A4",
+    margin: 28,
+    info: {
+      Title: `Facture ${order.id}`,
+      Author: settings.companyName || "Action BLA Ghla",
+    },
+  });
+
+  const rows = order.items.map((item) => ({
+    label: `${item.productName} x${item.qty}`,
+    amount: new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "MAD",
+      maximumFractionDigits: 2,
+    }).format(item.lineRevenueMad),
+  }));
+
+  if (order.deliveryPriceMad > 0) {
+    rows.push({
+      label: `Livraison (${order.carrierName})`,
+      amount: new Intl.NumberFormat("fr-FR", {
+        style: "currency",
+        currency: "MAD",
+        maximumFractionDigits: 2,
+      }).format(order.deliveryPriceMad),
+    });
+  }
+
+  response.setHeader("Content-Type", "application/pdf");
+  response.setHeader(
+    "Content-Disposition",
+    `${download ? "attachment" : "inline"}; filename="facture-${order.id}.pdf"`,
+  );
+
+  doc.pipe(response);
+
+  doc
+    .fontSize(19)
+    .fillColor("#154284")
+    .text(settings.companyName || "Action BLA Ghla", 28, 28)
+    .fontSize(8.5)
+    .fillColor("#5a6473")
+    .text(`Facture ${order.id}`, { align: "right" })
+    .text(`Date ${new Date(order.orderedAt).toLocaleDateString("fr-FR")}`, {
+      align: "right",
+    });
+
+  doc
+    .moveDown(1)
+    .fontSize(10)
+    .fillColor("#111827")
+    .text(`Client: ${order.customer.name}`)
+    .text(`Téléphone: ${order.customer.phone}`)
+    .text(`Ville: ${order.customer.city}`)
+    .text(`Adresse: ${order.customer.address}`);
+
+  let cursorY = 148;
+  doc
+    .roundedRect(28, cursorY, 539, 24, 8)
+    .fillAndStroke("#f7c600", "#f7c600")
+    .fillColor("#111827")
+    .fontSize(9)
+    .text("Détail", 40, cursorY + 7)
+    .text("Montant", 438, cursorY + 7, { width: 110, align: "right" });
+
+  cursorY += 32;
+
+  rows.forEach((row) => {
+    doc
+      .fillColor("#111827")
+      .fontSize(9)
+      .text(row.label, 40, cursorY, { width: 366 })
+      .text(row.amount, 438, cursorY, { width: 110, align: "right" });
+    cursorY += 18;
+  });
+
+  cursorY += 4;
+  doc
+    .moveTo(28, cursorY)
+    .lineTo(567, cursorY)
+    .strokeColor("#d1d5db")
+    .stroke();
+  cursorY += 12;
+
+  doc
+    .fontSize(10)
+    .fillColor("#5a6473")
+    .text("Total à payer", 336, cursorY, { width: 120, align: "right" })
+    .fillColor("#111827")
+    .fontSize(13)
+    .text(
+      new Intl.NumberFormat("fr-FR", {
+        style: "currency",
+        currency: "MAD",
+        maximumFractionDigits: 2,
+      }).format(order.totalRevenueMad),
+      438,
+      cursorY - 2,
+      { width: 110, align: "right" },
+    );
+
+  cursorY += 30;
+  doc
+    .fontSize(8.5)
+    .fillColor("#5a6473")
+    .text(`Statut: ${order.status}`, 28, cursorY)
+    .text(`Paiement: ${order.paymentStatus === "payee" ? "Payée" : "Non payée"}`, 214, cursorY)
+    .text(`Transporteur: ${order.carrierName}`, 392, cursorY, { width: 160, align: "right" });
+
+  if (order.notes) {
+    cursorY += 20;
+    doc
+      .fontSize(8)
+      .fillColor("#5a6473")
+      .text(`Notes: ${order.notes}`, 28, cursorY, { width: 539 });
+  }
+
+  doc.end();
+}
+
+app.use((request, _response, next) => {
+  console.log(`${request.method} ${request.url}`);
+  next();
+});
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/api/health", (_request, response) => {
+  response.json({
+    status: "ok",
+    app: "action-bla-ghla-admin",
+    stack: "node-express-static",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get(
+  "/api/auth/session",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const user = getAuthenticatedUser(request, store);
+
+    response.json({
+      isAuthenticated: Boolean(user),
+      requiresSetup: store.users.length === 0,
+      user: sanitizeUser(user),
+    });
+  }),
+);
+
+app.post(
+  "/api/auth/setup",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      if (store.users.length > 0) {
+        throw createValidationError("Un compte existe déjà. Connecte-toi.");
+      }
+
+      const password = requireString(request.body.password, "Mot de passe");
+
+      if (password.length < 8) {
+        throw createValidationError("Le mot de passe doit contenir au moins 8 caractères.");
+      }
+
+      const user = {
+        id: createId("usr"),
+        login: requireString(request.body.login, "Identifiant").toLowerCase(),
+        displayName: requireString(request.body.displayName, "Nom affiché"),
+        ...hashPassword(password),
+        createdAt: new Date().toISOString(),
+      };
+
+      store.users.push(user);
+      return store;
+    });
+
+    const user = nextStore.users[0];
+    startSession(response, user.id);
+    response.status(201).json({
+      message: "Compte créé et connecté.",
+      user: sanitizeUser(user),
+    });
+  }),
+);
+
+app.post(
+  "/api/auth/login",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const login = requireString(request.body.login, "Identifiant").toLowerCase();
+    const password = requireString(request.body.password, "Mot de passe");
+    const user = store.users.find((entry) => entry.login === login);
+
+    if (!user || !verifyPassword(password, user)) {
+      throw createValidationError("Identifiant ou mot de passe incorrect.");
+    }
+
+    startSession(response, user.id);
+    response.json({
+      message: "Connexion réussie.",
+      user: sanitizeUser(user),
+    });
+  }),
+);
+
+app.post("/api/auth/logout", (request, response) => {
+  endSession(request, response);
+  response.json({
+    message: "Déconnexion réussie.",
+  });
+});
+
+app.use("/api", requireAuthenticatedApi);
+
+app.get(
+  "/api/users",
+  asyncRoute(async (request, response) => {
+    requirePersonnelAdmin(request.authUser);
+
+    const users = request.authStore.users
+      .slice()
+      .sort((left, right) => {
+        const adminDelta = Number(canManageUsers(right)) - Number(canManageUsers(left));
+
+        if (adminDelta !== 0) {
+          return adminDelta;
+        }
+
+        return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+      })
+      .map(sanitizeManagedUser);
+
+    response.json(paginateItems(users, request.query));
+  }),
+);
+
+app.post(
+  "/api/users",
+  asyncRoute(async (request, response) => {
+    requirePersonnelAdmin(request.authUser);
+
+    const nextStore = await updateStore((store) => {
+      const displayName = requireString(request.body.displayName, "Nom affiché");
+      const login = requireString(request.body.login, "Identifiant").toLowerCase();
+      const password = requireString(request.body.password, "Mot de passe");
+
+      if (password.length < 8) {
+        throw createValidationError("Le mot de passe doit contenir au moins 8 caractères.");
+      }
+
+      if (store.users.some((user) => user.login === login)) {
+        throw createValidationError("Cet identifiant existe déjà.");
+      }
+
+      const user = {
+        id: createId("usr"),
+        login,
+        displayName,
+        ...hashPassword(password),
+        createdAt: new Date().toISOString(),
+      };
+
+      store.users.push(user);
+      return store;
+    });
+
+    const createdUser = nextStore.users.at(-1);
+
+    response.status(201).json({
+      message: "Compte créé.",
+      user: sanitizeManagedUser(createdUser),
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.get(
+  "/api/app-state",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    response.json(buildPublicState(store, request));
+  }),
+);
+
+app.get(
+  "/api/bootstrap",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const appState = buildPublicState(store, request);
+
+    response.json({
+      appName: appState.settings.companyName,
+      hostingTarget: "lowest-cost",
+      nextBuild: ["produits", "achats", "envois", "commandes", "stats"],
+      dashboard: appState.dashboard,
+    });
+  }),
+);
+
+app.get(
+  "/api/products",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    const items = state.products.map((product) => ({
+      ...product,
+      hasHistory: productHasHistory(product.id, store),
+    }));
+
+    response.json(paginateItems(items, request.query));
+  }),
+);
+
+app.get(
+  "/api/purchases",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    response.json(paginateItems(state.purchases, request.query));
+  }),
+);
+
+app.get(
+  "/api/shipments",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    response.json(paginateItems(state.shipments, request.query));
+  }),
+);
+
+app.get(
+  "/api/orders",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    const productImageById = new Map(
+      state.products.map((product) => [product.id, product.imageUrl || ""]),
+    );
+    const items = state.orders.map((order) => ({
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        productImageUrl: productImageById.get(item.productId) || "",
+      })),
+    }));
+
+    response.json(paginateItems(items, request.query));
+  }),
+);
+
+app.get(
+  "/api/shipments/:shipmentId",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    const shipment = state.shipments.find((entry) => entry.id === request.params.shipmentId);
+
+    if (!shipment) {
+      throw createNotFoundError("Envoi introuvable.");
+    }
+
+    const productImageById = new Map(
+      state.products.map((product) => [product.id, product.imageUrl || ""]),
+    );
+
+    response.json({
+      ...shipment,
+      items: shipment.items.map((item) => ({
+        ...item,
+        productImageUrl: productImageById.get(item.productId) || "",
+      })),
+    });
+  }),
+);
+
+app.put(
+  "/api/settings",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      store.settings.companyName = requireString(
+        request.body.companyName,
+        "Nom de l'application",
+      );
+      store.settings.transportRatePerKgEur = requireNumber(
+        request.body.transportRatePerKgEur,
+        "Transport EUR/kg",
+        { min: 0 },
+      );
+      store.settings.eurToMad = requireNumber(request.body.eurToMad, "Taux EUR vers MAD", {
+        min: 0.01,
+      });
+      store.settings.lowStockDefault = requireInteger(
+        request.body.lowStockDefault,
+        "Seuil stock faible",
+        { min: 0 },
+      );
+
+      return store;
+    });
+
+    response.json({
+      message: "Réglages mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/products",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const product = {
+        id: createId("prd"),
+        name: requireString(request.body.name, "Nom du produit"),
+        weightKg: requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 }),
+        defaultPurchasePriceEur: requireNumber(
+          request.body.defaultPurchasePriceEur,
+          "Prix d'achat EUR",
+          { min: 0 },
+        ),
+        defaultSalePriceMad: requireNumber(request.body.defaultSalePriceMad, "Prix de vente MAD", {
+          min: 0,
+        }),
+        minStockAlert: requireInteger(request.body.minStockAlert, "Seuil stock faible", {
+          min: 0,
+        }),
+        imageUrl: "",
+        notes: optionalString(request.body.notes),
+        createdAt: new Date().toISOString(),
+      };
+      const initialStockQty = requireInteger(
+        request.body.initialStockQty ?? 0,
+        "Stock initial France",
+        { min: 0 },
+      );
+
+      product.imageUrl =
+        (await persistProductImage(request.body.imageUpload, product.id)) ||
+        optionalString(request.body.imageUrl);
+
+      store.products.push(product);
+
+      if (initialStockQty > 0) {
+        store.purchases.push(createInitialStockPurchase(product, initialStockQty));
+      }
+
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Produit ajouté.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.put(
+  "/api/products/:productId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const product = findProduct(request.params.productId, store);
+
+      product.name = requireString(request.body.name, "Nom du produit");
+      product.weightKg = requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 });
+      product.defaultPurchasePriceEur = requireNumber(
+        request.body.defaultPurchasePriceEur,
+        "Prix d'achat EUR",
+        { min: 0 },
+      );
+      product.defaultSalePriceMad = requireNumber(
+        request.body.defaultSalePriceMad,
+        "Prix de vente MAD",
+        { min: 0 },
+      );
+      product.minStockAlert = requireInteger(
+        request.body.minStockAlert,
+        "Seuil stock faible",
+        { min: 0 },
+      );
+      product.notes = optionalString(request.body.notes);
+      product.updatedAt = new Date().toISOString();
+
+      if (request.body.imageUpload?.dataUrl) {
+        product.imageUrl = await persistProductImage(request.body.imageUpload, product.id);
+      }
+
+      return store;
+    });
+
+    response.json({
+      message: "Produit mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/products/:productId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const productIndex = store.products.findIndex(
+        (entry) => entry.id === request.params.productId,
+      );
+
+      if (productIndex === -1) {
+        throw createNotFoundError("Produit introuvable.");
+      }
+
+      const product = store.products[productIndex];
+
+      if (productHasHistory(product.id, store)) {
+        throw createValidationError(
+          "Impossible de supprimer ce produit car il est déjà utilisé dans l'historique.",
+        );
+      }
+
+      store.products.splice(productIndex, 1);
+      await removeProductImage(product.imageUrl);
+      return store;
+    });
+
+    response.json({
+      message: "Produit supprimé.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/purchases",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const purchase = buildPurchaseRecord(request.body, store);
+      purchase.invoiceImageUrl =
+        (await persistPurchaseInvoiceImage(request.body.invoiceImageUpload, purchase.id)) ||
+        purchase.invoiceImageUrl;
+      store.purchases.push(purchase);
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Commande fournisseur enregistrée.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.put(
+  "/api/purchases/:purchaseId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const purchaseIndex = store.purchases.findIndex(
+        (entry) => entry.id === request.params.purchaseId,
+      );
+
+      if (purchaseIndex === -1) {
+        throw createNotFoundError("Achat introuvable.");
+      }
+
+      const existingPurchase = store.purchases[purchaseIndex];
+      const nextPurchase = buildPurchaseRecord(
+        request.body,
+        store,
+        request.params.purchaseId,
+      );
+      nextPurchase.invoiceImageUrl = existingPurchase.invoiceImageUrl || "";
+
+      if (request.body.invoiceImageUpload?.dataUrl) {
+        nextPurchase.invoiceImageUrl = await persistPurchaseInvoiceImage(
+          request.body.invoiceImageUpload,
+          request.params.purchaseId,
+        );
+      }
+
+      store.purchases[purchaseIndex] = nextPurchase;
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Achat mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/purchases/:purchaseId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const purchaseIndex = store.purchases.findIndex(
+        (entry) => entry.id === request.params.purchaseId,
+      );
+
+      if (purchaseIndex === -1) {
+        throw createNotFoundError("Achat introuvable.");
+      }
+
+      const [purchase] = store.purchases.splice(purchaseIndex, 1);
+      await removeProductImage(purchase?.invoiceImageUrl);
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Achat supprimé.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/shipments",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      store.shipments.push(buildShipmentRecord(request.body, store));
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Envoi vers le Maroc ajouté.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.put(
+  "/api/shipments/:shipmentId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const shipmentIndex = store.shipments.findIndex(
+        (entry) => entry.id === request.params.shipmentId,
+      );
+
+      if (shipmentIndex === -1) {
+        throw createNotFoundError("Envoi introuvable.");
+      }
+
+      store.shipments[shipmentIndex] = buildShipmentRecord(
+        request.body,
+        store,
+        request.params.shipmentId,
+      );
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Envoi mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/shipments/:shipmentId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const shipmentIndex = store.shipments.findIndex(
+        (entry) => entry.id === request.params.shipmentId,
+      );
+
+      if (shipmentIndex === -1) {
+        throw createNotFoundError("Envoi introuvable.");
+      }
+
+      store.shipments.splice(shipmentIndex, 1);
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Envoi supprimé.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.patch(
+  "/api/shipments/:shipmentId/summary",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const shipment = findRecord(store.shipments, request.params.shipmentId, "Envoi");
+      const nextStatus = optionalString(request.body.status || shipment.status || "envoye");
+
+      if (!shipmentStatuses.has(nextStatus)) {
+        throw createValidationError("Le statut de l'envoi est invalide.");
+      }
+
+      shipment.status = nextStatus;
+      return store;
+    });
+
+    response.json({
+      message: "Statut de l'envoi mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/orders",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      store.orders.push(buildOrderRecord(request.body, store));
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Commande client ajoutée.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.put(
+  "/api/orders/:orderId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const orderIndex = store.orders.findIndex((entry) => entry.id === request.params.orderId);
+
+      if (orderIndex === -1) {
+        throw createNotFoundError("Commande introuvable.");
+      }
+
+      store.orders[orderIndex] = buildOrderRecord(request.body, store, request.params.orderId);
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Commande mise à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/orders/:orderId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const orderIndex = store.orders.findIndex((entry) => entry.id === request.params.orderId);
+
+      if (orderIndex === -1) {
+        throw createNotFoundError("Commande introuvable.");
+      }
+
+      store.orders.splice(orderIndex, 1);
+      assertNonNegativeStocks(store);
+      return store;
+    });
+
+    response.json({
+      message: "Commande supprimée.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.patch(
+  "/api/orders/:orderId/summary",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const order = findRecord(store.orders, request.params.orderId, "Commande");
+      const nextStatus = optionalString(request.body.status || order.status);
+      const nextPaymentStatus = optionalString(
+        request.body.paymentStatus || order.paymentStatus,
+      );
+
+      if (!orderStatuses.has(nextStatus)) {
+        throw createValidationError("Le statut de commande est invalide.");
+      }
+
+      if (!paymentStatuses.has(nextPaymentStatus)) {
+        throw createValidationError("Le statut de paiement est invalide.");
+      }
+
+      order.status = nextStatus;
+      order.paymentStatus = nextPaymentStatus;
+      order.paidAt = nextPaymentStatus === "payee" ? new Date().toISOString() : null;
+      return store;
+    });
+
+    response.json({
+      message: "Commande mise à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.patch(
+  "/api/orders/:orderId/payment-status",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const order = findRecord(store.orders, request.params.orderId, "Commande");
+      const paymentStatus = optionalString(request.body.paymentStatus);
+
+      if (!paymentStatuses.has(paymentStatus)) {
+        throw createValidationError("Le statut de paiement est invalide.");
+      }
+
+      order.paymentStatus = paymentStatus;
+      order.paidAt = paymentStatus === "payee" ? new Date().toISOString() : null;
+      return store;
+    });
+
+    response.json({
+      message: "Paiement mis à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.get(
+  "/api/orders/:orderId",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    const productImageById = new Map(
+      state.products.map((product) => [product.id, product.imageUrl || ""]),
+    );
+    const order = state.orders.find((entry) => entry.id === request.params.orderId);
+
+    if (!order) {
+      throw createNotFoundError("Commande introuvable.");
+    }
+
+    response.json({
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        productImageUrl: productImageById.get(item.productId) || "",
+      })),
+    });
+  }),
+);
+
+app.get(
+  "/api/orders/:orderId/invoice",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const appState = buildPublicState(store, request);
+    const order = appState.orders.find((entry) => entry.id === request.params.orderId);
+
+    if (!order) {
+      throw createNotFoundError("Commande introuvable.");
+    }
+
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.send(
+      renderInvoiceHtml(order, appState.settings, {
+        autoPrint: request.query.download === "1",
+      }),
+    );
+  }),
+);
+
+app.get("*", (_request, response) => {
+  response.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.use((error, _request, response, _next) => {
+  const status = error.status ?? 500;
+
+  if (status >= 500) {
+    console.error(error);
+  }
+
+  response.status(status).json({
+    message:
+      status >= 500
+        ? "Erreur interne du serveur."
+        : error.message || "Une erreur est survenue.",
+  });
+});
+
+readStore()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`App running on http://localhost:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to initialize store", error);
+    process.exit(1);
+  });

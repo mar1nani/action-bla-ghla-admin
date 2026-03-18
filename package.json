@@ -1,0 +1,19 @@
+{
+  "name": "action-bla-ghla-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal stock app scaffold for low-cost deployment.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.20.0"
+  }
+}

@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Action BLA Ghla</title>
+    <meta
+      name="description"
+      content="Application de gestion de stock, achats, envois vers le Maroc, commandes clients et statistiques."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside id="app-sidebar" class="sidebar" aria-label="Navigation principale">
+        <div class="sidebar-header">
+          <a class="sidebar-brand" href="/">
+            <span id="sidebar-brand-media" class="sidebar-brand-media">
+              <img
+                id="sidebar-brand-logo"
+                class="sidebar-brand-logo"
+                alt="Logo Action Bla Ghla"
+                hidden
+              />
+              <span id="sidebar-brand-fallback" class="sidebar-brand-mark">AG</span>
+            </span>
+            <span class="sidebar-brand-copy">
+              <strong>Action BLA Ghla</strong>
+              <small>Stock France -> Maroc</small>
+            </span>
+          </a>
+          <button
+            id="sidebar-toggle"
+            class="sidebar-toggle"
+            type="button"
+            aria-expanded="true"
+            aria-label="Fermer la sidebar"
+            title="Ouvrir ou fermer la sidebar"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M15 6l-6 6 6 6"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a
+            href="/"
+            class="sidebar-link"
+            data-section-link="dashboard"
+            title="Tableau de bord"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="3" width="7" height="10" rx="2"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="16" width="7" height="5" rx="2"></rect>
+              </svg>
+            </span>
+            <span class="sidebar-label">Tableau de bord</span>
+          </a>
+          <a
+            href="/products"
+            class="sidebar-link"
+            data-section-link="products"
+            title="Produits"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M12 12l8-4.5M12 12L4 7.5M12 12v9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Produits</span>
+          </a>
+          <a
+            href="/purchases"
+            class="sidebar-link"
+            data-section-link="purchases"
+            title="Achats"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 4h10l2 14H5L7 4z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M9 8h6M9 12h6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Achats</span>
+          </a>
+          <a
+            href="/shipments"
+            class="sidebar-link"
+            data-section-link="shipments"
+            title="Envois"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 7h11v8H3zM14 10h3l4 3v2h-7z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <circle cx="8" cy="18" r="2"></circle>
+                <circle cx="18" cy="18" r="2"></circle>
+              </svg>
+            </span>
+            <span class="sidebar-label">Envois</span>
+          </a>
+          <a
+            href="/orders"
+            class="sidebar-link"
+            data-section-link="orders"
+            title="Commandes"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M6 7h12l-1 11H7L6 7z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M9 9V7a3 3 0 016 0v2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Commandes</span>
+          </a>
+          <a
+            href="/stats"
+            class="sidebar-link"
+            data-section-link="stats"
+            title="Statistiques"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M5 19V9M12 19V5M19 19v-7"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Statistiques</span>
+          </a>
+          <a
+            href="/personnel"
+            class="sidebar-link"
+            data-section-link="personnel"
+            title="Personnel"
+            hidden
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 19v-1.5A3.5 3.5 0 0110.5 14h3A3.5 3.5 0 0117 17.5V19"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <circle
+                  cx="12"
+                  cy="8"
+                  r="3"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                ></circle>
+              </svg>
+            </span>
+            <span class="sidebar-label">Personnel</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <p class="sidebar-note-title">Navigation rapide</p>
+          <p class="sidebar-note">
+            Ferme la sidebar pour ne garder que les icônes et gagner de la place.
+          </p>
+        </div>
+      </aside>
+      <button
+        id="sidebar-backdrop"
+        class="sidebar-backdrop"
+        type="button"
+        aria-label="Fermer la navigation"
+        hidden
+      ></button>
+
+      <div class="app-content">
+        <header class="topbar topbar-compact">
+          <button
+            id="topbar-sidebar-toggle"
+            class="topbar-sidebar-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-label="Ouvrir la navigation"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4 7h16M4 12h16M4 17h16"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </button>
+          <div class="topbar-spacer" aria-hidden="true"></div>
+          <div class="topbar-meta">
+            <div class="topbar-utility">
+              <div class="quick-create">
+                <button
+                  id="quick-create-toggle"
+                  class="quick-create-toggle"
+                  type="button"
+                  aria-expanded="false"
+                  aria-haspopup="menu"
+                  aria-controls="quick-create-menu"
+                  aria-label="Ajouter"
+                  title="Ajouter"
+                >
+                  <span class="quick-create-plus">+</span>
+                </button>
+                <div id="quick-create-menu" class="quick-create-menu" role="menu" hidden>
+                  <button
+                    class="quick-create-item"
+                    type="button"
+                    data-open-modal="product-modal"
+                    data-modal-path="/products"
+                    data-form-type="product"
+                  >
+                    Nouveau produit
+                  </button>
+                  <button
+                    class="quick-create-item"
+                    type="button"
+                    data-open-modal="purchase-modal"
+                    data-modal-path="/purchases"
+                    data-form-type="purchase"
+                  >
+                    Nouvel achat
+                  </button>
+                  <button
+                    class="quick-create-item"
+                    type="button"
+                    data-open-modal="shipment-modal"
+                    data-modal-path="/shipments"
+                    data-form-type="shipment"
+                  >
+                    Nouvel envoi
+                  </button>
+                  <button
+                    class="quick-create-item"
+                    type="button"
+                    data-open-modal="order-modal"
+                    data-modal-path="/orders"
+                    data-form-type="order"
+                  >
+                    Nouvelle commande
+                  </button>
+                </div>
+              </div>
+              <div class="profile-menu-shell">
+                <button
+                  id="profile-trigger"
+                  class="profile-trigger"
+                  type="button"
+                  aria-expanded="false"
+                  aria-haspopup="menu"
+                  aria-controls="profile-menu"
+                >
+                  <span id="profile-avatar" class="profile-avatar">?</span>
+                </button>
+                <div id="profile-menu" class="profile-menu" role="menu" hidden>
+                  <div class="profile-menu-card" aria-label="Compte actif">
+                    <span id="profile-menu-avatar" class="profile-avatar profile-avatar-large">?</span>
+                    <div class="profile-copy">
+                      <strong id="profile-name">Session fermée</strong>
+                      <small id="profile-login">Connecte-toi pour accéder au stock</small>
+                    </div>
+                  </div>
+                  <button id="logout-button" class="ghost-button logout-button" type="button" hidden>
+                    Déconnexion
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <p id="flash-message" class="flash-message" hidden></p>
+
+        <main class="sections">
+        <section id="dashboard" class="section dashboard-section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Vue globale</p>
+              <h3>Pilotage rapide</h3>
+            </div>
+          </div>
+          <div id="dashboard-cards" class="metric-grid"></div>
+          <div class="dashboard-main-grid">
+            <article class="panel dashboard-panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">A surveiller</p>
+                  <h3>Stock faible Maroc</h3>
+                </div>
+              </div>
+              <div id="low-stock-list" class="list-stack"></div>
+            </article>
+
+            <article class="panel dashboard-panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Historique</p>
+                  <h3>Activité récente</h3>
+                </div>
+              </div>
+              <div id="activity-list" class="list-stack"></div>
+            </article>
+
+            <article class="panel settings-panel dashboard-panel dashboard-settings-panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Réglages</p>
+                  <h3>Paramètres globaux</h3>
+                </div>
+              </div>
+              <form id="settings-form" class="stack-form">
+                <label class="field">
+                  <span>Nom de l'application</span>
+                  <input id="company-name" name="companyName" type="text" required />
+                </label>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Transport EUR / kg</span>
+                    <input
+                      id="transport-rate"
+                      name="transportRatePerKgEur"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Taux EUR vers MAD</span>
+                    <input
+                      id="eur-to-mad"
+                      name="eurToMad"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                </div>
+                <label class="field field-compact-sm">
+                  <span>Seuil faible par défaut</span>
+                  <input
+                    id="low-stock-default"
+                    name="lowStockDefault"
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                  />
+                </label>
+                <button class="primary-button" type="submit">Mettre à jour</button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="products" class="section">
+          <article class="panel">
+            <div class="section-head section-head-actions">
+              <div>
+                <p class="eyebrow">Catalogue complet</p>
+                <h3>Produits et stocks</h3>
+              </div>
+            </div>
+            <div class="table-shell">
+              <div id="products-table"></div>
+            </div>
+            <div id="products-pagination" class="table-pagination"></div>
+          </article>
+
+          <div id="product-modal" class="modal-shell" hidden>
+            <div class="modal-backdrop" data-close-modal="product-modal"></div>
+            <article class="panel modal-panel">
+              <div class="modal-head">
+                <div>
+                  <p class="eyebrow">Catalogue</p>
+                  <h3 id="product-form-title">Ajouter un produit</h3>
+                </div>
+                <button
+                  class="modal-close"
+                  type="button"
+                  data-close-modal="product-modal"
+                  aria-label="Fermer la fenêtre"
+                >
+                  ×
+                </button>
+              </div>
+              <form id="product-form" class="stack-form">
+                <input id="product-id" name="productId" type="hidden" />
+                <p id="product-form-error" class="form-error" hidden></p>
+                <label class="field">
+                  <span>Nom du produit</span>
+                  <input name="name" type="text" required />
+                </label>
+                <div class="field-row">
+                  <label class="field field-compact-xs">
+                    <span>Poids (kg)</span>
+                    <input name="weightKg" type="number" min="0.001" step="0.001" required />
+                  </label>
+                  <label class="field field-compact-xs">
+                    <span>Seuil stock faible</span>
+                    <input name="minStockAlert" type="number" min="0" step="1" required />
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Prix d'achat EUR</span>
+                    <input
+                      name="defaultPurchasePriceEur"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Prix de vente MAD</span>
+                    <input
+                      name="defaultSalePriceMad"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field field-compact-xs">
+                    <span>Stock initial France</span>
+                    <input
+                      id="product-initial-stock-qty"
+                      name="initialStockQty"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="0"
+                    />
+                    <small id="product-stock-help" class="field-help">
+                      Optionnel. Permet de démarrer avec du stock France dès la création.
+                    </small>
+                  </label>
+                  <div class="field field-ghost" aria-hidden="true"></div>
+                </div>
+                <label class="field upload-field">
+                  <span>Photo produit</span>
+                  <input
+                    id="product-image-file"
+                    class="upload-input"
+                    name="imageFile"
+                    type="file"
+                    accept="image/*"
+                  />
+                  <small class="field-help">
+                    L'image sera automatiquement convertie et compressée en WebP avant
+                    l'enregistrement.
+                  </small>
+                </label>
+                <div id="product-image-preview" class="product-upload-preview is-empty">
+                  <img
+                    id="product-preview-image"
+                    class="product-preview-image"
+                    alt="Aperçu du produit"
+                    hidden
+                  />
+                  <div class="product-upload-copy">
+                    <strong id="product-image-title">Aucune photo sélectionnée</strong>
+                    <p id="product-image-meta">
+                      Choisis une image depuis ton appareil pour la compresser en WebP.
+                    </p>
+                  </div>
+                </div>
+                <label class="field">
+                  <span>Notes</span>
+                  <textarea name="notes" rows="3"></textarea>
+                </label>
+                <div class="form-actions">
+                  <button id="product-submit-button" class="primary-button" type="submit">
+                    Ajouter le produit
+                  </button>
+                  <button
+                    id="product-cancel-button"
+                    class="ghost-button"
+                    type="button"
+                    hidden
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="purchases" class="section">
+          <article class="panel">
+            <div class="section-head section-head-actions">
+              <div>
+                <p class="eyebrow">Historique</p>
+                <h3>Commandes fournisseur</h3>
+              </div>
+            </div>
+            <div class="table-shell">
+              <div id="purchases-list"></div>
+            </div>
+            <div id="purchases-pagination" class="table-pagination"></div>
+          </article>
+
+          <div id="purchase-modal" class="modal-shell" hidden>
+            <div class="modal-backdrop" data-close-modal="purchase-modal"></div>
+            <article class="panel modal-panel">
+              <div class="modal-head">
+                <div>
+                  <p class="eyebrow">Entrée de stock France</p>
+                  <h3 id="purchase-form-title">Nouvel achat</h3>
+                </div>
+                <button
+                  class="modal-close"
+                  type="button"
+                  data-close-modal="purchase-modal"
+                  aria-label="Fermer la fenêtre"
+                >
+                  ×
+                </button>
+              </div>
+              <form id="purchase-form" class="stack-form">
+                <input id="purchase-id" name="purchaseId" type="hidden" />
+                <p id="purchase-form-error" class="form-error" hidden></p>
+                <div class="field-row">
+                  <label class="field">
+                    <span>Fournisseur</span>
+                    <input name="supplierName" type="text" value="Action" required />
+                  </label>
+                  <label class="field field-compact-md">
+                    <span>Date d'achat</span>
+                    <input name="orderedAt" type="date" required />
+                  </label>
+                </div>
+                <label class="field field-compact-lg">
+                  <span>Référence commande</span>
+                  <input name="orderNumber" type="text" />
+                </label>
+                <label class="field upload-field">
+                  <span>Photo de la facture Action</span>
+                  <input
+                    id="purchase-invoice-file"
+                    class="upload-input"
+                    name="invoiceFile"
+                    type="file"
+                    accept="image/*"
+                  />
+                  <small class="field-help">
+                    La photo est automatiquement convertie et compressée en WebP.
+                  </small>
+                </label>
+                <div id="purchase-invoice-preview" class="product-upload-preview is-empty">
+                  <img
+                    id="purchase-invoice-preview-image"
+                    class="product-preview-image"
+                    alt="Aperçu de la facture fournisseur"
+                    hidden
+                  />
+                  <div class="product-upload-copy">
+                    <strong id="purchase-invoice-title">Aucune photo sélectionnée</strong>
+                    <p id="purchase-invoice-meta">
+                      Ajoute la facture Action pour la retrouver ensuite depuis l'icône œil.
+                    </p>
+                  </div>
+                </div>
+                <div class="line-items-head">
+                  <p>Lignes achat</p>
+                  <button class="ghost-button" type="button" data-add-row="purchase">
+                    Ajouter une ligne
+                  </button>
+                </div>
+                <div id="purchase-items" class="line-items"></div>
+                <div id="purchase-summary" class="summary-box"></div>
+                <label class="field">
+                  <span>Notes</span>
+                  <textarea name="notes" rows="3"></textarea>
+                </label>
+                <button id="purchase-submit-button" class="primary-button" type="submit">
+                  Enregistrer l'achat
+                </button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="shipments" class="section">
+          <article class="panel">
+            <div class="section-head section-head-actions">
+              <div>
+                <p class="eyebrow">Transferts</p>
+                <h3>Historique des envois</h3>
+              </div>
+            </div>
+            <div class="table-shell">
+              <div id="shipments-list"></div>
+            </div>
+            <div id="shipments-pagination" class="table-pagination"></div>
+          </article>
+
+          <div id="shipment-modal" class="modal-shell" hidden>
+            <div class="modal-backdrop" data-close-modal="shipment-modal"></div>
+            <article class="panel modal-panel">
+              <div class="modal-head">
+                <div>
+                  <p class="eyebrow">Transfert vers le Maroc</p>
+                  <h3 id="shipment-form-title">Nouvel envoi</h3>
+                </div>
+                <button
+                  class="modal-close"
+                  type="button"
+                  data-close-modal="shipment-modal"
+                  aria-label="Fermer la fenêtre"
+                >
+                  ×
+                </button>
+              </div>
+              <form id="shipment-form" class="stack-form">
+                <input id="shipment-id" name="shipmentId" type="hidden" />
+                <p id="shipment-form-error" class="form-error" hidden></p>
+                <div class="field-row">
+                  <label class="field field-compact-md">
+                    <span>Date d'envoi</span>
+                    <input name="shippedAt" type="date" required />
+                  </label>
+                  <label class="field field-compact-lg">
+                    <span>Statut</span>
+                    <select name="status">
+                      <option value="achete">Acheté</option>
+                      <option value="en_preparation">En cours de préparation</option>
+                      <option value="envoye">Envoyé</option>
+                      <option value="chez_transporteur">Chez le transporteur</option>
+                      <option value="recu">Colis reçu</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Poids du colis (kg)</span>
+                    <input
+                      name="packageWeightKg"
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      required
+                    />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Prix du transport EUR</span>
+                    <input name="shippingPriceEur" type="number" min="0" step="0.01" required />
+                  </label>
+                </div>
+                <label class="field field-compact-lg">
+                  <span>Référence d'envoi</span>
+                  <input name="reference" type="text" />
+                </label>
+                <div class="line-items-head">
+                  <p>Produits envoyés</p>
+                  <button class="ghost-button" type="button" data-add-row="shipment">
+                    Ajouter une ligne
+                  </button>
+                </div>
+                <div id="shipment-items" class="line-items"></div>
+                <div id="shipment-summary" class="summary-box"></div>
+                <label class="field">
+                  <span>Notes</span>
+                  <textarea name="notes" rows="3"></textarea>
+                </label>
+                <button id="shipment-submit-button" class="primary-button" type="submit">
+                  Enregistrer l'envoi
+                </button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="orders" class="section">
+          <article class="panel">
+            <div class="section-head section-head-actions">
+              <div>
+                <p class="eyebrow">Clients et ventes</p>
+                <h3>Historique des commandes</h3>
+              </div>
+            </div>
+            <div class="table-shell">
+              <div id="orders-list"></div>
+            </div>
+            <div id="orders-pagination" class="table-pagination"></div>
+          </article>
+
+          <div id="order-modal" class="modal-shell" hidden>
+            <div class="modal-backdrop" data-close-modal="order-modal"></div>
+            <article class="panel modal-panel">
+              <div class="modal-head">
+                <div>
+                  <p class="eyebrow">Sortie de stock Maroc</p>
+                  <h3 id="order-form-title">Nouvelle commande client</h3>
+                </div>
+                <button
+                  class="modal-close"
+                  type="button"
+                  data-close-modal="order-modal"
+                  aria-label="Fermer la fenêtre"
+                >
+                  ×
+                </button>
+              </div>
+              <form id="order-form" class="stack-form">
+                <input id="order-id" name="orderId" type="hidden" />
+                <p id="order-form-error" class="form-error" hidden></p>
+                <div class="field-row">
+                  <label class="field field-compact-md">
+                    <span>Date de commande</span>
+                    <input name="orderedAt" type="date" required />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Statut</span>
+                    <select name="status">
+                      <option value="confirmee">Confirmée</option>
+                      <option value="brouillon">Brouillon</option>
+                      <option value="livree">Livrée</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Paiement</span>
+                    <select name="paymentStatus">
+                      <option value="non_payee">Non payée</option>
+                      <option value="payee">Payée</option>
+                    </select>
+                  </label>
+                  <label class="field field-compact-md">
+                    <span>Transporteur</span>
+                    <select name="carrierName">
+                      <option value="Achraf">Achraf</option>
+                      <option value="Malak">Malak</option>
+                      <option value="Marouane">Marouane</option>
+                      <option value="Ozon Express">Ozon Express</option>
+                      <option value="Autres">Autres</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field">
+                    <span>Nom client</span>
+                    <input name="customerName" type="text" required />
+                  </label>
+                  <label class="field field-compact-lg">
+                    <span>Téléphone marocain</span>
+                    <input name="customerPhone" type="tel" placeholder="+212612345678" required />
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field field-compact-md">
+                    <span>Ville</span>
+                    <input name="customerCity" type="text" required />
+                  </label>
+                  <label class="field">
+                    <span>Adresse</span>
+                    <input name="customerAddress" type="text" required />
+                  </label>
+                </div>
+                <label class="field field-compact-sm">
+                  <span>Prix de livraison MAD</span>
+                  <input name="deliveryPriceMad" type="number" min="0" step="0.01" value="0" />
+                </label>
+                <div class="line-items-head">
+                  <p>Produits commandés</p>
+                  <button class="ghost-button" type="button" data-add-row="order">
+                    Ajouter une ligne
+                  </button>
+                </div>
+                <div id="order-items" class="line-items"></div>
+                <div id="order-summary" class="summary-box"></div>
+                <label class="field">
+                  <span>Notes</span>
+                  <textarea name="notes" rows="3"></textarea>
+                </label>
+                <button id="order-submit-button" class="primary-button" type="submit">
+                  Enregistrer la commande
+                </button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section id="stats" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Analyse</p>
+              <h3>Produits, marges et villes</h3>
+            </div>
+          </div>
+          <div class="split-grid stats-grid">
+            <article class="panel">
+              <p class="eyebrow">Top ventes</p>
+              <div id="stats-top-sold" class="bars-list"></div>
+            </article>
+            <article class="panel">
+              <p class="eyebrow">Top bénéfices</p>
+              <div id="stats-top-profit" class="bars-list"></div>
+            </article>
+            <article class="panel">
+              <p class="eyebrow">Meilleure marge</p>
+              <div id="stats-best-margin" class="bars-list"></div>
+            </article>
+            <article class="panel">
+              <p class="eyebrow">Villes les plus actives</p>
+              <div id="stats-top-cities" class="bars-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="personnel" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Accès</p>
+              <h3>Personnel</h3>
+            </div>
+          </div>
+          <div class="split-grid personnel-grid">
+            <article class="panel panel-form">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Nouveau compte</p>
+                  <h3>Créer un accès</h3>
+                </div>
+              </div>
+              <form id="personnel-form" class="stack-form">
+                <p id="personnel-form-error" class="form-error" hidden></p>
+                <label class="field">
+                  <span>Nom affiché</span>
+                  <input
+                    name="displayName"
+                    type="text"
+                    placeholder="Malak"
+                    autocomplete="name"
+                    required
+                  />
+                </label>
+                <label class="field field-compact-lg">
+                  <span>Identifiant</span>
+                  <input
+                    name="login"
+                    type="text"
+                    placeholder="malak"
+                    autocomplete="username"
+                    required
+                  />
+                </label>
+                <label class="field field-compact-lg">
+                  <span>Mot de passe</span>
+                  <input
+                    name="password"
+                    type="password"
+                    placeholder="Minimum 8 caractères"
+                    autocomplete="new-password"
+                    required
+                  />
+                  <small class="field-help">
+                    Le mot de passe est chiffré avant stockage.
+                  </small>
+                </label>
+                <button id="personnel-submit-button" class="primary-button" type="submit">
+                  Créer le compte
+                </button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Comptes actifs</p>
+                  <h3>Liste du personnel</h3>
+                </div>
+              </div>
+              <div class="table-shell">
+                <div id="personnel-table"></div>
+              </div>
+              <div id="personnel-pagination" class="table-pagination"></div>
+            </article>
+          </div>
+        </section>
+        </main>
+
+        <div id="shipment-details-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="shipment-details-modal"></div>
+          <article class="panel modal-panel modal-panel-wide">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">Détail envoi</p>
+                <h3 id="shipment-details-title">Envoi</h3>
+              </div>
+              <button
+                class="modal-close"
+                type="button"
+                data-close-modal="shipment-details-modal"
+                aria-label="Fermer la fenêtre"
+              >
+                ×
+              </button>
+            </div>
+            <div id="shipment-details-content"></div>
+          </article>
+        </div>
+
+        <div id="order-details-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="order-details-modal"></div>
+          <article class="panel modal-panel modal-panel-wide">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">Détail commande</p>
+                <h3 id="order-details-title">Commande</h3>
+              </div>
+              <button
+                class="modal-close"
+                type="button"
+                data-close-modal="order-details-modal"
+                aria-label="Fermer la fenêtre"
+              >
+                ×
+              </button>
+            </div>
+            <div id="order-details-content"></div>
+          </article>
+        </div>
+
+        <div id="image-viewer-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="image-viewer-modal"></div>
+          <article class="panel modal-panel modal-image-panel">
+            <button
+              class="modal-close"
+              type="button"
+              data-close-modal="image-viewer-modal"
+              aria-label="Fermer l'image"
+            >
+              ×
+            </button>
+            <img id="image-viewer-target" class="image-viewer-target" alt="Agrandissement produit" />
+          </article>
+        </div>
+
+        <div id="confirm-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="confirm-modal"></div>
+          <article class="panel modal-panel confirm-modal-panel">
+            <div class="confirm-modal-icon" aria-hidden="true">!</div>
+            <div class="confirm-modal-copy">
+              <p class="eyebrow">Confirmation</p>
+              <h3 id="confirm-modal-title">Supprimer cet élément ?</h3>
+              <p id="confirm-modal-message">
+                Cette action est définitive et ne pourra pas être annulée.
+              </p>
+            </div>
+            <div class="confirm-modal-actions">
+              <button
+                id="confirm-modal-cancel"
+                class="ghost-button"
+                type="button"
+                data-close-modal="confirm-modal"
+              >
+                Annuler
+              </button>
+              <button id="confirm-modal-confirm" class="danger-button" type="button">
+                Supprimer
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <div id="auth-shell" class="auth-shell" hidden>
+          <article class="panel auth-panel">
+            <div class="auth-brand">
+              <span class="auth-mark">A</span>
+              <div>
+                <p class="eyebrow">Action BLA Ghla</p>
+                <h2 id="auth-title">Connexion</h2>
+              </div>
+            </div>
+            <p id="auth-subtitle" class="auth-subtitle">
+              Connecte-toi pour accéder au tableau de bord.
+            </p>
+
+            <form id="login-form" class="stack-form" hidden>
+              <p id="login-form-error" class="form-error" hidden></p>
+              <label class="field">
+                <span>Identifiant</span>
+                <input name="login" type="text" autocomplete="username" required />
+              </label>
+              <label class="field">
+                <span>Mot de passe</span>
+                <input
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                />
+              </label>
+              <button class="primary-button" type="submit">Se connecter</button>
+            </form>
+
+            <form id="setup-form" class="stack-form" hidden>
+              <p id="setup-form-error" class="form-error" hidden></p>
+              <label class="field">
+                <span>Nom affiché</span>
+                <input name="displayName" type="text" required />
+              </label>
+              <label class="field">
+                <span>Identifiant</span>
+                <input name="login" type="text" autocomplete="username" required />
+              </label>
+              <label class="field">
+                <span>Mot de passe</span>
+                <input
+                  name="password"
+                  type="password"
+                  autocomplete="new-password"
+                  required
+                />
+              </label>
+              <button class="primary-button" type="submit">Créer le compte</button>
+            </form>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
