@@ -256,6 +256,10 @@
               ></path>
             </svg>
           </button>
+          <div class="topbar-mobile-title-shell">
+            <span class="topbar-mobile-label">Navigation</span>
+            <strong id="topbar-mobile-title" class="topbar-mobile-title">Tableau de bord</strong>
+          </div>
           <div class="topbar-spacer" aria-hidden="true"></div>
           <div class="topbar-meta">
             <div class="topbar-utility">
@@ -340,6 +344,21 @@
         </header>
 
         <p id="flash-message" class="flash-message" hidden></p>
+
+        <div class="mobile-fab-shell" aria-hidden="false">
+          <button
+            id="mobile-quick-create-toggle"
+            class="mobile-quick-create-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-haspopup="menu"
+            aria-controls="quick-create-menu"
+            aria-label="Ajouter"
+            title="Ajouter"
+          >
+            <span class="mobile-quick-create-plus">+</span>
+          </button>
+        </div>
 
         <main class="sections">
         <section id="dashboard" class="section dashboard-section">
@@ -955,6 +974,84 @@
           </div>
         </section>
         </main>
+
+        <nav class="mobile-nav" aria-label="Navigation mobile principale">
+          <a href="/" class="mobile-nav-link" data-section-link="dashboard" title="Tableau de bord">
+            <span class="mobile-nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="3" width="7" height="10" rx="2"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="16" width="7" height="5" rx="2"></rect>
+              </svg>
+            </span>
+            <span class="mobile-nav-label">Accueil</span>
+          </a>
+          <a href="/products" class="mobile-nav-link" data-section-link="products" title="Produits">
+            <span class="mobile-nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M12 12l8-4.5M12 12L4 7.5M12 12v9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="mobile-nav-label">Produits</span>
+          </a>
+          <span class="mobile-nav-gap" aria-hidden="true"></span>
+          <a href="/orders" class="mobile-nav-link" data-section-link="orders" title="Commandes">
+            <span class="mobile-nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M6 7h12l-1 11H7L6 7z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M9 9V7a3 3 0 016 0v2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="mobile-nav-label">Commandes</span>
+          </a>
+          <button
+            id="mobile-nav-menu-toggle"
+            class="mobile-nav-link mobile-nav-link-button"
+            type="button"
+            aria-expanded="false"
+            aria-label="Ouvrir le menu"
+            title="Menu"
+          >
+            <span class="mobile-nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 7h16M4 12h16M4 17h16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </span>
+            <span class="mobile-nav-label">Menu</span>
+          </button>
+        </nav>
 
         <div id="shipment-details-modal" class="modal-shell" hidden>
           <div class="modal-backdrop" data-close-modal="shipment-details-modal"></div>

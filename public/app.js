@@ -102,8 +102,11 @@ const refs = {
   sidebarBrandFallback: document.querySelector("#sidebar-brand-fallback"),
   sidebarToggle: document.querySelector("#sidebar-toggle"),
   topbarSidebarToggle: document.querySelector("#topbar-sidebar-toggle"),
+  topbarMobileTitle: document.querySelector("#topbar-mobile-title"),
   sidebarBackdrop: document.querySelector("#sidebar-backdrop"),
   sectionLinks: [...document.querySelectorAll("[data-section-link]")],
+  mobileNavMenuToggle: document.querySelector("#mobile-nav-menu-toggle"),
+  mobileQuickCreateToggle: document.querySelector("#mobile-quick-create-toggle"),
   personnelLink: document.querySelector('[data-section-link="personnel"]'),
   sections: [...document.querySelectorAll(".section")],
   personnelForm: document.querySelector("#personnel-form"),
@@ -308,6 +311,10 @@ function syncResponsiveShellState() {
     refs.sidebarBackdrop.hidden = !mobileSidebarOpen;
     refs.sidebarBackdrop.setAttribute("aria-hidden", String(!mobileSidebarOpen));
   }
+
+  if (refs.mobileNavMenuToggle) {
+    refs.mobileNavMenuToggle.setAttribute("aria-expanded", String(mobileSidebarOpen));
+  }
 }
 
 function applySidebarState(collapsed) {
@@ -421,6 +428,10 @@ function applyPageLayout() {
 
   if (refs.pageKicker) {
     refs.pageKicker.textContent = pageConfig.documentTitle;
+  }
+
+  if (refs.topbarMobileTitle) {
+    refs.topbarMobileTitle.textContent = pageConfig.documentTitle;
   }
 
   document.title = `${
@@ -579,12 +590,19 @@ function todayInputValue() {
 function closeQuickCreateMenu() {
   refs.quickCreateMenu.hidden = true;
   refs.quickCreateToggle.setAttribute("aria-expanded", "false");
+  refs.mobileQuickCreateToggle?.setAttribute("aria-expanded", "false");
 }
 
 function toggleQuickCreateMenu() {
+  if (isMobileViewport() && document.body.classList.contains("mobile-sidebar-open")) {
+    applySidebarState(true);
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "true");
+  }
+
   const nextExpanded = refs.quickCreateMenu.hidden;
   refs.quickCreateMenu.hidden = !nextExpanded;
   refs.quickCreateToggle.setAttribute("aria-expanded", String(nextExpanded));
+  refs.mobileQuickCreateToggle?.setAttribute("aria-expanded", String(nextExpanded));
 }
 
 function closeProfileMenu() {
@@ -1239,6 +1257,7 @@ function renderProductsTable() {
         <col class="table-col-cost" />
         <col class="table-col-cost" />
         <col class="table-col-cost" />
+        <col class="table-col-cost" />
         <col class="table-col-profit" />
         <col class="table-col-actions" />
       </colgroup>
@@ -1250,6 +1269,7 @@ function renderProductsTable() {
           <th>Stock FR</th>
           <th>Stock MA</th>
           <th>Coût d'achat</th>
+          <th>Transport estimé</th>
           <th>Coût Maroc</th>
           <th>Vente</th>
           <th>Bénéfice / unité</th>
@@ -1291,6 +1311,12 @@ function renderProductsTable() {
                   }">${escapeHtml(formatNumber(product.metrics.moroccoStock, 0))}</span>
                 </td>
                 <td>${escapeHtml(formatCurrency(product.metrics.avgPurchaseCostEur, "EUR"))}</td>
+                <td>${escapeHtml(
+                  formatCurrency(
+                    (product.weightKg || 0) * (state.settings.transportRatePerKgEur || 0),
+                    "EUR",
+                  ),
+                )}</td>
                 <td>${escapeHtml(formatCurrency(product.metrics.avgLandedCostMad, "MAD"))}</td>
                 <td>${escapeHtml(formatCurrency(product.defaultSalePriceMad, "MAD"))}</td>
                 <td>${escapeHtml(formatCurrency(product.metrics.estimatedUnitProfitMad, "MAD"))}</td>
@@ -3211,6 +3237,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const mobileNavMenuToggle = event.target.closest("#mobile-nav-menu-toggle");
+
+  if (mobileNavMenuToggle) {
+    toggleSidebar();
+    return;
+  }
+
   const sidebarBackdrop = event.target.closest("#sidebar-backdrop");
 
   if (sidebarBackdrop) {
@@ -3222,6 +3255,14 @@ function handleDocumentClick(event) {
   const quickCreateToggle = event.target.closest("#quick-create-toggle");
 
   if (quickCreateToggle) {
+    closeProfileMenu();
+    toggleQuickCreateMenu();
+    return;
+  }
+
+  const mobileQuickCreateToggle = event.target.closest("#mobile-quick-create-toggle");
+
+  if (mobileQuickCreateToggle) {
     closeProfileMenu();
     toggleQuickCreateMenu();
     return;
