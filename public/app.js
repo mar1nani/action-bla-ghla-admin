@@ -1253,7 +1253,6 @@ function renderProductsTable() {
         <col class="table-col-product" />
         <col class="table-col-compact" />
         <col class="table-col-stock" />
-        <col class="table-col-stock" />
         <col class="table-col-cost" />
         <col class="table-col-cost" />
         <col class="table-col-cost" />
@@ -1266,13 +1265,12 @@ function renderProductsTable() {
           <th></th>
           <th>Produit</th>
           <th>Poids</th>
-          <th>Stock FR</th>
-          <th>Stock MA</th>
-          <th>Coût d'achat</th>
-          <th>Transport estimé</th>
+          <th>Stock (FR / MA)</th>
+          <th>Achat</th>
+          <th>Transport</th>
           <th>Coût Maroc</th>
           <th>Vente</th>
-          <th>Bénéfice / unité</th>
+          <th>Bénéfice</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -1290,6 +1288,7 @@ function renderProductsTable() {
                     label: product.name,
                     className: "product-thumb-table",
                     fallback: product.name.slice(0, 2).toUpperCase(),
+                    button: true,
                   })}
                 </td>
                 <td>
@@ -1304,11 +1303,19 @@ function renderProductsTable() {
                   </div>
                 </td>
                 <td>${escapeHtml(formatWeight(product.weightKg))}</td>
-                <td>${escapeHtml(formatNumber(product.metrics.franceStock, 0))}</td>
                 <td>
-                  <span class="${
-                    product.metrics.lowStock ? "stock-badge stock-low" : "stock-badge"
-                  }">${escapeHtml(formatNumber(product.metrics.moroccoStock, 0))}</span>
+                  <div class="stock-pair">
+                    <span class="stock-pill stock-pill-fr">
+                      FR ${escapeHtml(formatNumber(product.metrics.franceStock, 0))}
+                    </span>
+                    <span class="${
+                      product.metrics.lowStock
+                        ? "stock-pill stock-pill-ma stock-pill-low"
+                        : "stock-pill stock-pill-ma"
+                    }">
+                      MA ${escapeHtml(formatNumber(product.metrics.moroccoStock, 0))}
+                    </span>
+                  </div>
                 </td>
                 <td>${escapeHtml(formatCurrency(product.metrics.avgPurchaseCostEur, "EUR"))}</td>
                 <td>${escapeHtml(
