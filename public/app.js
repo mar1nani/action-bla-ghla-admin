@@ -1873,6 +1873,25 @@ function resetPurchaseInvoiceSelection() {
   updatePurchaseInvoicePreview();
 }
 
+function getProductImageDisplayName(productName = "", fallback = "photo-produit.webp") {
+  const cleanedName = String(productName ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  return cleanedName ? `${cleanedName}.webp` : fallback;
+}
+
+function syncPendingProductImageLabel() {
+  if (!pendingProductImageUpload?.dataUrl) {
+    return;
+  }
+
+  refs.productImageTitle.textContent = getProductImageDisplayName(
+    refs.productForm.elements.name.value,
+    pendingProductImageUpload.fileName,
+  );
+}
+
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -2556,12 +2575,17 @@ async function handleProductImageChange(event) {
       return;
     }
 
-    pendingProductImageUpload = upload;
-    pendingProductImageTask = Promise.resolve(upload);
+    const namedUpload = {
+      ...upload,
+      fileName: getProductImageDisplayName(refs.productForm.elements.name.value, upload.fileName),
+    };
+
+    pendingProductImageUpload = namedUpload;
+    pendingProductImageTask = Promise.resolve(namedUpload);
     updateProductImagePreview({
-      src: upload.dataUrl,
-      title: upload.fileName,
-      meta: `${upload.width} x ${upload.height} px · ${upload.sizeKb} Ko · WebP`,
+      src: namedUpload.dataUrl,
+      title: namedUpload.fileName,
+      meta: `${namedUpload.width} x ${namedUpload.height} px · ${namedUpload.sizeKb} Ko · WebP`,
     });
   } catch (error) {
     if (version !== productImageVersion) {
@@ -2796,16 +2820,22 @@ async function handleProductSubmit(event) {
     setModalFormError("product");
     setSubmitting(form, true);
     const imageUpload = await pendingProductImageTask;
+    const productName = form.elements.name.value;
     const productId = activeProductEditId || form.elements.productId.value;
     const isEditing = Boolean(productId);
     const payload = {
-      name: form.elements.name.value,
+      name: productName,
       weightKg: Number(form.elements.weightKg.value),
       defaultPurchasePriceEur: Number(form.elements.defaultPurchasePriceEur.value),
       defaultSalePriceMad: Number(form.elements.defaultSalePriceMad.value),
       minStockAlert: Number(form.elements.minStockAlert.value),
       initialStockQty: Number(form.elements.initialStockQty.value || 0),
-      imageUpload,
+      imageUpload: imageUpload
+        ? {
+            ...imageUpload,
+            fileName: getProductImageDisplayName(productName, imageUpload.fileName),
+          }
+        : null,
       notes: form.elements.notes.value,
     };
     const result = await apiRequest(isEditing ? `/api/products/${productId}` : "/api/products", {
@@ -3505,6 +3535,10 @@ function handleDocumentKeydown(event) {
 }
 
 function handleFormInput(event) {
+  if (event.target.form === refs.productForm && event.target.name === "name") {
+    syncPendingProductImageLabel();
+  }
+
   const row = event.target.closest(".line-item-row");
 
   if (row) {
@@ -3539,6 +3573,7 @@ function bindEvents() {
   refs.productForm.addEventListener("submit", handleProductSubmit);
   refs.productCancelButton.addEventListener("click", handleProductCancel);
   refs.productImageFile.addEventListener("change", handleProductImageChange);
+  refs.productForm.addEventListener("input", handleFormInput);
   refs.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
   refs.purchaseInvoiceFile.addEventListener("change", handlePurchaseInvoiceChange);
   refs.shipmentForm.addEventListener("submit", handleShipmentSubmit);
@@ -3552,9 +3587,9 @@ function bindEvents() {
 
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
-  refs.purchaseForm.addEventListener("input", handleFormInput);
   refs.shipmentForm.addEventListener("input", handleFormInput);
   refs.orderForm.addEventListener("input", handleFormInput);
+  refs.purchaseForm.addEventListener("input", handleFormInput);
 
   refs.sectionLinks.forEach((link) => {
     link.addEventListener("click", (event) => {

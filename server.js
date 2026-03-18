@@ -285,7 +285,64 @@ function findProduct(productId, store) {
   return product;
 }
 
-async function persistProductImage(upload, productId) {
+function normalizeProductNameKey(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("fr");
+}
+
+function assertUniqueProductName(store, productName, currentProductId = "") {
+  const nameKey = normalizeProductNameKey(productName);
+  const duplicate = store.products.find(
+    (product) =>
+      product.id !== currentProductId && normalizeProductNameKey(product.name) === nameKey,
+  );
+
+  if (duplicate) {
+    throw createValidationError(`Le produit "${duplicate.name}" existe déjà.`);
+  }
+}
+
+function buildProductImageFileName(productName, productId) {
+  const slug = String(productName ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("en-US")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `${slug || "produit"}-${productId}.webp`;
+}
+
+async function syncStoredProductImageName(product) {
+  if (isDatabaseStoreEnabled() || !product.imageUrl?.startsWith("/uploads/")) {
+    return;
+  }
+
+  const nextFileName = buildProductImageFileName(product.name, product.id);
+  const nextRelativePath = `/uploads/${nextFileName}`;
+
+  if (product.imageUrl === nextRelativePath) {
+    return;
+  }
+
+  const currentFilePath = path.join(uploadsDirectory, path.basename(product.imageUrl));
+  const nextFilePath = path.join(uploadsDirectory, nextFileName);
+
+  try {
+    await fs.rename(currentFilePath, nextFilePath);
+    product.imageUrl = nextRelativePath;
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function persistProductImage(upload, productId, productName, currentImageUrl = "") {
   if (!upload?.dataUrl) {
     return "";
   }
@@ -310,10 +367,15 @@ async function persistProductImage(upload, productId) {
 
   await fs.mkdir(uploadsDirectory, { recursive: true });
 
-  const relativePath = `/uploads/${productId}.webp`;
-  const filePath = path.join(uploadsDirectory, `${productId}.webp`);
+  const fileName = buildProductImageFileName(productName, productId);
+  const relativePath = `/uploads/${fileName}`;
+  const filePath = path.join(uploadsDirectory, fileName);
 
   await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+
+  if (currentImageUrl && currentImageUrl.startsWith("/uploads/") && currentImageUrl !== relativePath) {
+    await removeProductImage(currentImageUrl);
+  }
 
   return relativePath;
 }
@@ -1048,9 +1110,12 @@ app.post(
   "/api/products",
   asyncRoute(async (request, response) => {
     const nextStore = await updateStore(async (store) => {
+      const productName = requireString(request.body.name, "Nom du produit");
+      assertUniqueProductName(store, productName);
+
       const product = {
         id: createId("prd"),
-        name: requireString(request.body.name, "Nom du produit"),
+        name: productName,
         weightKg: requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 }),
         defaultPurchasePriceEur: requireNumber(
           request.body.defaultPurchasePriceEur,
@@ -1074,7 +1139,7 @@ app.post(
       );
 
       product.imageUrl =
-        (await persistProductImage(request.body.imageUpload, product.id)) ||
+        (await persistProductImage(request.body.imageUpload, product.id, product.name)) ||
         optionalString(request.body.imageUrl);
 
       store.products.push(product);
@@ -1098,8 +1163,11 @@ app.put(
   asyncRoute(async (request, response) => {
     const nextStore = await updateStore(async (store) => {
       const product = findProduct(request.params.productId, store);
+      const productName = requireString(request.body.name, "Nom du produit");
 
-      product.name = requireString(request.body.name, "Nom du produit");
+      assertUniqueProductName(store, productName, product.id);
+
+      product.name = productName;
       product.weightKg = requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 });
       product.defaultPurchasePriceEur = requireNumber(
         request.body.defaultPurchasePriceEur,
@@ -1120,7 +1188,14 @@ app.put(
       product.updatedAt = new Date().toISOString();
 
       if (request.body.imageUpload?.dataUrl) {
-        product.imageUrl = await persistProductImage(request.body.imageUpload, product.id);
+        product.imageUrl = await persistProductImage(
+          request.body.imageUpload,
+          product.id,
+          product.name,
+          product.imageUrl,
+        );
+      } else {
+        await syncStoredProductImageName(product);
       }
 
       return store;
