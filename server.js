@@ -222,6 +222,117 @@ function paginateItems(items, query) {
   };
 }
 
+function normalizeFilterText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sanitizeFilterDate(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : "";
+}
+
+function matchesFilterSearch(query, ...parts) {
+  const search = normalizeFilterText(query.search);
+
+  if (!search) {
+    return true;
+  }
+
+  const haystack = normalizeFilterText(parts.flat().join(" "));
+  return haystack.includes(search);
+}
+
+function matchesFilterDateRange(value, query) {
+  const dateFrom = sanitizeFilterDate(query.dateFrom);
+  const dateTo = sanitizeFilterDate(query.dateTo);
+
+  if (!dateFrom && !dateTo) {
+    return true;
+  }
+
+  const currentDate = String(value || "").slice(0, 10);
+
+  if (!currentDate) {
+    return false;
+  }
+
+  if (dateFrom && currentDate < dateFrom) {
+    return false;
+  }
+
+  if (dateTo && currentDate > dateTo) {
+    return false;
+  }
+
+  return true;
+}
+
+function filterProducts(items, query) {
+  return items.filter((product) => matchesFilterSearch(query, product.name));
+}
+
+function filterPurchases(items, query) {
+  return items.filter(
+    (purchase) =>
+      matchesFilterDateRange(purchase.orderedAt, query) &&
+      matchesFilterSearch(
+        query,
+        purchase.supplierName,
+        purchase.orderNumber,
+        purchase.notes,
+        purchase.totalQty,
+        purchase.totalCostEur,
+        purchase.totalWeightKg,
+        (purchase.items ?? []).map((item) => `${item.productName} ${item.qty}`),
+      ),
+  );
+}
+
+function filterShipments(items, query) {
+  return items.filter(
+    (shipment) =>
+      matchesFilterDateRange(shipment.shippedAt, query) &&
+      matchesFilterSearch(
+        query,
+        shipment.reference,
+        shipment.status,
+        shipment.notes,
+        shipment.totalQty,
+        shipment.packageWeightKg,
+        shipment.shippingPriceEur,
+        shipment.packageRatePerKgEur,
+        (shipment.items ?? []).map((item) => `${item.productName} ${item.qty}`),
+      ),
+  );
+}
+
+function filterOrders(items, query) {
+  return items.filter(
+    (order) =>
+      matchesFilterDateRange(order.orderedAt, query) &&
+      matchesFilterSearch(
+        query,
+        order.customer?.name,
+        order.customer?.phone,
+        order.customer?.city,
+        order.customer?.address,
+        order.status,
+        order.paymentStatus,
+        order.carrierName,
+        order.deliveryPriceMad,
+        order.customerTotalMad,
+        order.totalProfitMad,
+        (order.items ?? []).map((item) => `${item.productName} ${item.qty}`),
+      ),
+  );
+}
+
 function assertNonNegativeStocks(store) {
   const state = buildAppState(store);
   const invalidProduct = state.products.find(
@@ -1009,7 +1120,7 @@ app.get(
       hasHistory: productHasHistory(product.id, store),
     }));
 
-    response.json(paginateItems(items, request.query));
+    response.json(paginateItems(filterProducts(items, request.query), request.query));
   }),
 );
 
@@ -1018,7 +1129,7 @@ app.get(
   asyncRoute(async (request, response) => {
     const store = await readStore();
     const state = buildPublicState(store, request);
-    response.json(paginateItems(state.purchases, request.query));
+    response.json(paginateItems(filterPurchases(state.purchases, request.query), request.query));
   }),
 );
 
@@ -1027,7 +1138,7 @@ app.get(
   asyncRoute(async (request, response) => {
     const store = await readStore();
     const state = buildPublicState(store, request);
-    response.json(paginateItems(state.shipments, request.query));
+    response.json(paginateItems(filterShipments(state.shipments, request.query), request.query));
   }),
 );
 
@@ -1047,7 +1158,7 @@ app.get(
       })),
     }));
 
-    response.json(paginateItems(items, request.query));
+    response.json(paginateItems(filterOrders(items, request.query), request.query));
   }),
 );
 

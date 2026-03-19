@@ -469,6 +469,29 @@
                 </button>
               </div>
             </div>
+            <form class="table-filters" data-table-filter-form="products">
+              <div class="field-row table-filters-row">
+                <label class="field">
+                  <span>Nom produit</span>
+                  <input
+                    name="search"
+                    type="search"
+                    placeholder="Chercher un produit"
+                    autocomplete="off"
+                  />
+                </label>
+                <div class="table-filter-actions">
+                  <button class="ghost-button" type="submit">Filtrer</button>
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-reset-table-filters="products"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+              </div>
+            </form>
             <div class="table-shell">
               <div id="products-table"></div>
             </div>
@@ -606,6 +629,37 @@
                 <h3>Commandes fournisseur</h3>
               </div>
             </div>
+            <form class="table-filters" data-table-filter-form="purchases">
+              <div class="field-row table-filters-row">
+                <label class="field">
+                  <span>Recherche</span>
+                  <input
+                    name="search"
+                    type="search"
+                    placeholder="Fournisseur, référence, produit..."
+                    autocomplete="off"
+                  />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Du</span>
+                  <input name="dateFrom" type="date" />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Au</span>
+                  <input name="dateTo" type="date" />
+                </label>
+                <div class="table-filter-actions">
+                  <button class="ghost-button" type="submit">Filtrer</button>
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-reset-table-filters="purchases"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+              </div>
+            </form>
             <div class="table-shell">
               <div id="purchases-list"></div>
             </div>
@@ -698,6 +752,37 @@
                 <h3>Historique des envois</h3>
               </div>
             </div>
+            <form class="table-filters" data-table-filter-form="shipments">
+              <div class="field-row table-filters-row">
+                <label class="field">
+                  <span>Recherche</span>
+                  <input
+                    name="search"
+                    type="search"
+                    placeholder="Référence, statut, produit..."
+                    autocomplete="off"
+                  />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Du</span>
+                  <input name="dateFrom" type="date" />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Au</span>
+                  <input name="dateTo" type="date" />
+                </label>
+                <div class="table-filter-actions">
+                  <button class="ghost-button" type="submit">Filtrer</button>
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-reset-table-filters="shipments"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+              </div>
+            </form>
             <div class="table-shell">
               <div id="shipments-list"></div>
             </div>
@@ -788,6 +873,37 @@
                 <h3>Historique des commandes</h3>
               </div>
             </div>
+            <form class="table-filters" data-table-filter-form="orders">
+              <div class="field-row table-filters-row">
+                <label class="field">
+                  <span>Recherche</span>
+                  <input
+                    name="search"
+                    type="search"
+                    placeholder="Client, téléphone, ville, produit..."
+                    autocomplete="off"
+                  />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Du</span>
+                  <input name="dateFrom" type="date" />
+                </label>
+                <label class="field field-compact-md">
+                  <span>Au</span>
+                  <input name="dateTo" type="date" />
+                </label>
+                <div class="table-filter-actions">
+                  <button class="ghost-button" type="submit">Filtrer</button>
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-reset-table-filters="orders"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+              </div>
+            </form>
             <div class="table-shell">
               <div id="orders-list"></div>
             </div>

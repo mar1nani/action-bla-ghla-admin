@@ -42,6 +42,27 @@ const state = {
   },
 };
 
+const DEFAULT_TABLE_FILTERS = {
+  products: {
+    search: "",
+  },
+  purchases: {
+    search: "",
+    dateFrom: "",
+    dateTo: "",
+  },
+  shipments: {
+    search: "",
+    dateFrom: "",
+    dateTo: "",
+  },
+  orders: {
+    search: "",
+    dateFrom: "",
+    dateTo: "",
+  },
+};
+
 const SIDEBAR_STORAGE_KEY = "action-bla-ghla-sidebar-collapsed";
 const SIDEBAR_BRAND_LOGO_PATHS = [
   "/assets/logo-action-bla-ghla.png",
@@ -64,6 +85,7 @@ let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
 const selectedProductIdsForPurchase = new Set();
+const tableFilters = structuredClone(DEFAULT_TABLE_FILTERS);
 const PAGE_CONFIG = {
   dashboard: {
     path: "/",
@@ -110,6 +132,7 @@ const refs = {
   mobileQuickCreateToggle: document.querySelector("#mobile-quick-create-toggle"),
   personnelLink: document.querySelector('[data-section-link="personnel"]'),
   sections: [...document.querySelectorAll(".section")],
+  tableFilterForms: [...document.querySelectorAll("[data-table-filter-form]")],
   personnelForm: document.querySelector("#personnel-form"),
   personnelFormError: document.querySelector("#personnel-form-error"),
   personnelSubmitButton: document.querySelector("#personnel-submit-button"),
@@ -860,6 +883,60 @@ function getTablePage(tableKey) {
   return state.tables[tableKey]?.pagination?.page || 1;
 }
 
+function getDefaultTableFilters(tableKey) {
+  return structuredClone(DEFAULT_TABLE_FILTERS[tableKey] || {});
+}
+
+function normalizeFilterValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getTableFilters(tableKey) {
+  return {
+    ...getDefaultTableFilters(tableKey),
+    ...(tableFilters[tableKey] || {}),
+  };
+}
+
+function resetAllTableFilters() {
+  Object.keys(DEFAULT_TABLE_FILTERS).forEach((tableKey) => {
+    tableFilters[tableKey] = getDefaultTableFilters(tableKey);
+  });
+}
+
+function buildTableQuery(tableKey, page = 1) {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: "10",
+  });
+  const filters = getTableFilters(tableKey);
+
+  Object.entries(filters).forEach(([key, value]) => {
+    const normalizedValue = normalizeFilterValue(value);
+
+    if (normalizedValue) {
+      params.set(key, normalizedValue);
+    }
+  });
+
+  return params.toString();
+}
+
+function syncTableFilterForms() {
+  refs.tableFilterForms.forEach((form) => {
+    const tableKey = form.dataset.tableFilterForm;
+    const filters = getTableFilters(tableKey);
+
+    Object.entries(filters).forEach(([key, value]) => {
+      const field = form.elements.namedItem(key);
+
+      if (field && "value" in field) {
+        field.value = value;
+      }
+    });
+  });
+}
+
 function setModalFormError(formType, message = "") {
   const target =
     {
@@ -1073,7 +1150,7 @@ async function loadAppState() {
 }
 
 async function loadTablePage(tableKey, page = 1, options = {}) {
-  const payload = await apiRequest(`${TABLE_ENDPOINTS[tableKey]}?page=${page}&pageSize=10`);
+  const payload = await apiRequest(`${TABLE_ENDPOINTS[tableKey]}?${buildTableQuery(tableKey, page)}`);
   state.tables[tableKey] = payload;
 
   if (options.render !== false) {
@@ -2050,6 +2127,7 @@ async function compressImageUpload(file, fallbackFileName = "image") {
 
 function renderAll() {
   syncSelectedProductsForPurchase();
+  syncTableFilterForms();
   applyPageLayout();
   renderDashboardCards();
   renderLowStock();
@@ -2239,6 +2317,7 @@ function createRowTemplate(type, values = {}) {
             step="0.01"
             value="${escapeHtml(values.unitPurchasePriceEur || "")}"
           />
+          <small class="row-inline-total" data-row-inline-total></small>
         </div>
         <p class="row-hint" data-row-hint></p>
       </div>
@@ -2377,9 +2456,16 @@ function getRowValues(row) {
 
 function updateRowHint(row, type) {
   const hint = row.querySelector("[data-row-hint]");
+  const inlineTotal = row.querySelector("[data-row-inline-total]");
   const values = getRowValues(row);
   const product = getProductById(values.productId);
   const qty = Number(values.qty || 0);
+  const unitPrice = Number(values.unitPurchasePriceEur || product?.defaultPurchasePriceEur || 0);
+
+  if (inlineTotal) {
+    inlineTotal.textContent =
+      qty > 0 || unitPrice > 0 ? `Total ligne ${formatCurrency(qty * unitPrice, "EUR")}` : "";
+  }
 
   if (!product) {
     hint.textContent = "Choisis un produit pour voir le coût, le poids et le stock.";
@@ -2966,6 +3052,7 @@ function clearProtectedState() {
     orders: { items: [], pagination: null },
     personnel: { items: [], pagination: null },
   };
+  resetAllTableFilters();
 }
 
 async function loadAuthenticatedApp() {
@@ -3532,6 +3619,52 @@ async function handleTablePageChange(button) {
   }
 }
 
+async function handleTableFilterSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const tableKey = form.dataset.tableFilterForm;
+
+  if (!tableKey || !TABLE_ENDPOINTS[tableKey]) {
+    return;
+  }
+
+  const nextFilters = getDefaultTableFilters(tableKey);
+
+  Object.keys(nextFilters).forEach((key) => {
+    nextFilters[key] = normalizeFilterValue(form.elements.namedItem(key)?.value || "");
+  });
+
+  if (nextFilters.dateFrom && nextFilters.dateTo && nextFilters.dateFrom > nextFilters.dateTo) {
+    showFlash("La date de début doit être antérieure ou égale à la date de fin.", "error");
+    return;
+  }
+
+  tableFilters[tableKey] = nextFilters;
+
+  try {
+    await loadTablePage(tableKey, 1);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
+async function handleTableFilterReset(button) {
+  const tableKey = button.dataset.resetTableFilters;
+
+  if (!tableKey || !TABLE_ENDPOINTS[tableKey]) {
+    return;
+  }
+
+  tableFilters[tableKey] = getDefaultTableFilters(tableKey);
+  syncTableFilterForms();
+
+  try {
+    await loadTablePage(tableKey, 1);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
 function handleDocumentClick(event) {
   const topbarSidebarToggle = event.target.closest("#topbar-sidebar-toggle");
 
@@ -3590,6 +3723,13 @@ function handleDocumentClick(event) {
 
   if (productsCreateOrderButton) {
     openOrderFromSelectedProducts();
+    return;
+  }
+
+  const resetTableFiltersButton = event.target.closest("[data-reset-table-filters]");
+
+  if (resetTableFiltersButton) {
+    void handleTableFilterReset(resetTableFiltersButton);
     return;
   }
 
@@ -3873,6 +4013,11 @@ function handleDocumentChange(event) {
 
 function bindEvents() {
   refs.sidebarToggle.addEventListener("click", toggleSidebar);
+  refs.tableFilterForms.forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      void handleTableFilterSubmit(event);
+    });
+  });
   refs.settingsForm.addEventListener("submit", handleSettingsSubmit);
   refs.productForm.addEventListener("submit", handleProductSubmit);
   refs.productCancelButton.addEventListener("click", handleProductCancel);

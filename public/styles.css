@@ -899,6 +899,26 @@ body.sidebar-collapsed .sidebar-footer::before {
   font-size: 1.08rem;
 }
 
+.table-filters {
+  margin-bottom: 18px;
+}
+
+.table-filters-row {
+  align-items: end;
+}
+
+.table-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.table-filter-actions .ghost-button,
+.table-filter-actions .primary-button {
+  min-height: 46px;
+}
+
 .metric-grid,
 .split-grid,
 .stats-grid {
@@ -1312,6 +1332,14 @@ select:disabled {
 
 .line-item-row .field {
   gap: 6px;
+}
+
+.row-inline-total {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .line-item-row .grow,
@@ -1867,7 +1895,9 @@ body.is-ready .section:not([hidden]) {
   }
 
   .section-head-inline-actions,
-  .section-head-inline-actions .section-action-button {
+  .section-head-inline-actions .section-action-button,
+  .table-filter-actions,
+  .table-filter-actions .ghost-button {
     width: 100%;
   }
 
