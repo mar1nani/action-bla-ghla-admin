@@ -2530,6 +2530,10 @@ body.sidebar-collapsed .sidebar-footer::before {
   grid-template-columns: minmax(0, 1.9fr) 104px 150px;
 }
 
+.line-item-row[data-type="order"].is-locked-product {
+  grid-template-columns: minmax(0, 1.9fr) 104px 150px;
+}
+
 .line-item-row[data-type="shipment"] {
   grid-template-columns: minmax(0, 1.8fr) 104px 42px;
 }

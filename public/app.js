@@ -136,6 +136,7 @@ const refs = {
   productsTable: document.querySelector("#products-table"),
   productsPagination: document.querySelector("#products-pagination"),
   productsCreatePurchaseButton: document.querySelector("#products-create-purchase-button"),
+  productsCreateOrderButton: document.querySelector("#products-create-order-button"),
   purchasesList: document.querySelector("#purchases-list"),
   purchasesPagination: document.querySelector("#purchases-pagination"),
   shipmentsList: document.querySelector("#shipments-list"),
@@ -186,6 +187,7 @@ const refs = {
   orderFormTitle: document.querySelector("#order-form-title"),
   orderSubmitButton: document.querySelector("#order-submit-button"),
   orderFormError: document.querySelector("#order-form-error"),
+  orderAddRowButton: document.querySelector('[data-add-row="order"]'),
   companyName: document.querySelector("#company-name"),
   transportRate: document.querySelector("#transport-rate"),
   eurToMad: document.querySelector("#eur-to-mad"),
@@ -826,16 +828,28 @@ function getSelectedProductsForPurchase() {
 }
 
 function updateProductsCreatePurchaseButton() {
-  if (!refs.productsCreatePurchaseButton) {
+  if (!refs.productsCreatePurchaseButton && !refs.productsCreateOrderButton) {
     return;
   }
 
   const selectedProducts = getSelectedProductsForPurchase();
-  refs.productsCreatePurchaseButton.hidden = selectedProducts.length === 0;
-  refs.productsCreatePurchaseButton.textContent =
-    selectedProducts.length <= 1
-      ? "Créer un achat"
-      : `Créer un achat (${formatNumber(selectedProducts.length, 0)})`;
+  const isHidden = selectedProducts.length === 0;
+
+  if (refs.productsCreatePurchaseButton) {
+    refs.productsCreatePurchaseButton.hidden = isHidden;
+    refs.productsCreatePurchaseButton.textContent =
+      selectedProducts.length <= 1
+        ? "Créer un achat"
+        : `Créer un achat (${formatNumber(selectedProducts.length, 0)})`;
+  }
+
+  if (refs.productsCreateOrderButton) {
+    refs.productsCreateOrderButton.hidden = isHidden;
+    refs.productsCreateOrderButton.textContent =
+      selectedProducts.length <= 1
+        ? "Créer une commande"
+        : `Créer une commande (${formatNumber(selectedProducts.length, 0)})`;
+  }
 }
 
 function getTableRecord(tableKey, recordId) {
@@ -1144,7 +1158,7 @@ function renderDashboardCards() {
       value: formatCurrency(totals.totalProfitMad ?? 0, "MAD"),
       meta:
         `${formatNumber(totals.lowStockCount ?? 0, 0)} alertes stock · ` +
-        `À encaisser ${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")}`,
+        `À encaisser client ${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")}`,
     },
   ];
 
@@ -1679,7 +1693,9 @@ function renderOrders() {
                     ${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}
                   </button>
                 </td>
-                <td>${escapeHtml(formatCurrency(order.totalRevenueMad, "MAD"))}</td>
+                <td>${escapeHtml(
+                  formatCurrency(order.customerTotalMad ?? order.totalRevenueMad, "MAD"),
+                )}</td>
                 <td>
                   <div class="table-status-stack">
                     <strong>${escapeHtml(formatCurrency(order.totalProfitMad, "MAD"))}</strong>
@@ -2158,7 +2174,7 @@ function buildProductOptions(selectedId = "") {
     .join("")}`;
 }
 
-function renderLineItemProductPreview(productId) {
+function renderLineItemProductPreview(productId, mode = "purchase") {
   const product = getProductById(productId);
 
   if (!product) {
@@ -2184,10 +2200,15 @@ function renderLineItemProductPreview(productId) {
       <div class="line-item-product-copy">
         <strong>${escapeHtml(product.name)}</strong>
         <small>${escapeHtml(
-          `${formatWeight(product.weightKg)} · achat défaut ${formatCurrency(
-            product.defaultPurchasePriceEur,
-            "EUR",
-          )}`,
+          mode === "order"
+            ? `${formatWeight(product.weightKg)} · vente défaut ${formatCurrency(
+                product.defaultSalePriceMad,
+                "MAD",
+              )}`
+            : `${formatWeight(product.weightKg)} · achat défaut ${formatCurrency(
+                product.defaultPurchasePriceEur,
+                "EUR",
+              )}`,
         )}</small>
       </div>
     </div>
@@ -2200,7 +2221,7 @@ function createRowTemplate(type, values = {}) {
       <div class="line-item-row" data-type="purchase">
         <div class="field grow">
           <span>Produit</span>
-          ${renderLineItemProductPreview(values.productId)}
+          ${renderLineItemProductPreview(values.productId, "purchase")}
           <input data-field="productId" type="hidden" value="${escapeHtml(values.productId || "")}" />
         </div>
         <div class="field compact">
@@ -2238,6 +2259,35 @@ function createRowTemplate(type, values = {}) {
           )}" />
         </div>
         <button class="ghost-button row-remove" type="button" data-remove-row>Retirer</button>
+        <p class="row-hint" data-row-hint></p>
+      </div>
+    `;
+  }
+
+  if (type === "order" && values.lockedProduct) {
+    return `
+      <div class="line-item-row is-locked-product" data-type="order">
+        <div class="field grow">
+          <span>Produit</span>
+          ${renderLineItemProductPreview(values.productId, "order")}
+          <input data-field="productId" type="hidden" value="${escapeHtml(values.productId || "")}" />
+        </div>
+        <div class="field compact">
+          <span>Quantité</span>
+          <input data-field="qty" type="number" min="1" step="1" value="${escapeHtml(
+            values.qty || 1,
+          )}" />
+        </div>
+        <div class="field compact">
+          <span>Prix de vente MAD</span>
+          <input
+            data-field="unitSalePriceMad"
+            type="number"
+            min="0"
+            step="0.01"
+            value="${escapeHtml(values.unitSalePriceMad || "")}"
+          />
+        </div>
         <p class="row-hint" data-row-hint></p>
       </div>
     `;
@@ -2305,7 +2355,10 @@ function updateRowsForType(type) {
     const preview = row.querySelector("[data-row-product-preview]");
 
     if (preview) {
-      preview.outerHTML = renderLineItemProductPreview(selectedId);
+      preview.outerHTML = renderLineItemProductPreview(
+        selectedId,
+        row.dataset.type === "order" ? "order" : "purchase",
+      );
     }
 
     updateRowHint(row, type);
@@ -2472,19 +2525,22 @@ function updateOrderSummary() {
   });
 
   const deliveryPriceMad = Number(refs.orderForm.elements.deliveryPriceMad.value || 0);
-  const revenueMad = itemsRevenueMad + deliveryPriceMad;
-  const profitMad = revenueMad - costMad;
-  const marginRate = revenueMad > 0 ? (profitMad / revenueMad) * 100 : 0;
+  const customerTotalMad = itemsRevenueMad + deliveryPriceMad;
+  const profitMad = itemsRevenueMad - costMad;
+  const marginRate = itemsRevenueMad > 0 ? (profitMad / itemsRevenueMad) * 100 : 0;
 
   refs.orderSummary.innerHTML = `
     <div class="summary-line"><span>Total unités</span><strong>${escapeHtml(
       formatNumber(totalQty, 0),
     )}</strong></div>
-    <div class="summary-line"><span>CA estimé</span><strong>${escapeHtml(
-      formatCurrency(revenueMad, "MAD"),
+    <div class="summary-line"><span>Ventes produits</span><strong>${escapeHtml(
+      formatCurrency(itemsRevenueMad, "MAD"),
     )}</strong></div>
-    <div class="summary-line"><span>Livraison</span><strong>${escapeHtml(
+    <div class="summary-line"><span>Livraison client</span><strong>${escapeHtml(
       formatCurrency(deliveryPriceMad, "MAD"),
+    )}</strong></div>
+    <div class="summary-line"><span>Total client</span><strong>${escapeHtml(
+      formatCurrency(customerTotalMad, "MAD"),
     )}</strong></div>
     <div class="summary-line"><span>Coût estimé</span><strong>${escapeHtml(
       formatCurrency(costMad, "MAD"),
@@ -2530,6 +2586,9 @@ function resetDynamicForm(form, type) {
     form.elements.paymentStatus.value = "non_payee";
     form.elements.carrierName.value = "Achraf";
     form.elements.deliveryPriceMad.value = "0";
+    if (refs.orderAddRowButton) {
+      refs.orderAddRowButton.hidden = false;
+    }
   }
 
   const container = formTypes[type].container;
@@ -2557,6 +2616,26 @@ function prefillPurchaseRows(productIds = []) {
       productId,
       qty: 1,
       unitPurchasePriceEur: product?.defaultPurchasePriceEur ?? "",
+    });
+  });
+
+  updateAllSummaries();
+}
+
+function prefillOrderRows(productIds = []) {
+  const container = formTypes.order.container;
+  const uniqueProductIds = [...new Set(productIds)].filter((productId) => getProductById(productId));
+
+  container.innerHTML = "";
+
+  uniqueProductIds.forEach((productId) => {
+    const product = getProductById(productId);
+
+    addLineItemRow("order", {
+      productId,
+      qty: 1,
+      unitSalePriceMad: product?.defaultSalePriceMad ?? "",
+      lockedProduct: true,
     });
   });
 
@@ -2608,6 +2687,25 @@ function openPurchaseFromSelectedProducts() {
   openModal("purchase-modal");
 }
 
+function openOrderFromSelectedProducts() {
+  const selectedProducts = getSelectedProductsForPurchase();
+
+  if (!selectedProducts.length) {
+    showFlash("Sélectionne au moins un produit pour préparer une commande.", "error");
+    return;
+  }
+
+  closeQuickCreateMenu();
+  setModalFormError("order");
+  resetDynamicForm(refs.orderForm, "order");
+  if (refs.orderAddRowButton) {
+    refs.orderAddRowButton.hidden = true;
+  }
+  prefillOrderRows(selectedProducts.map((product) => product.id));
+  navigateToPath("/orders");
+  openModal("order-modal");
+}
+
 function openCreateFlow(button) {
   const modalId = button.dataset.openModal;
   const targetPath = button.dataset.modalPath;
@@ -2618,6 +2716,12 @@ function openCreateFlow(button) {
   if (formType === "purchase") {
     navigateToPath("/products");
     openPurchaseFromSelectedProducts();
+    return;
+  }
+
+  if (formType === "order" && getSelectedProductsForPurchase().length) {
+    navigateToPath("/products");
+    openOrderFromSelectedProducts();
     return;
   }
 
@@ -3183,6 +3287,11 @@ async function handleOrderSubmit(event) {
       body: payload,
     });
     Object.assign(state, result.appState);
+
+    if (!isEditing) {
+      selectedProductIdsForPurchase.clear();
+    }
+
     closeModal("order-modal");
     await refreshTableData(["orders", "products"]);
     showFlash(result.message);
@@ -3222,7 +3331,8 @@ function renderOrderDetails(order) {
       </article>
       <article class="detail-card detail-card-highlight">
         <p class="eyebrow">Résumé</p>
-        <h4>${escapeHtml(formatCurrency(order.totalRevenueMad, "MAD"))}</h4>
+        <h4>${escapeHtml(formatCurrency(order.customerTotalMad ?? order.totalRevenueMad, "MAD"))}</h4>
+        <p>Ventes produits ${escapeHtml(formatCurrency(order.totalRevenueMad, "MAD"))}</p>
         <p>Livraison ${escapeHtml(formatCurrency(order.deliveryPriceMad || 0, "MAD"))}</p>
         <p>Bénéfice ${escapeHtml(formatCurrency(order.totalProfitMad, "MAD"))}</p>
         <p>Marge ${escapeHtml(`${formatNumber(order.marginRate, 2)}%`)}</p>
@@ -3473,6 +3583,13 @@ function handleDocumentClick(event) {
 
   if (productsCreatePurchaseButton) {
     openPurchaseFromSelectedProducts();
+    return;
+  }
+
+  const productsCreateOrderButton = event.target.closest("#products-create-order-button");
+
+  if (productsCreateOrderButton) {
+    openOrderFromSelectedProducts();
     return;
   }
 

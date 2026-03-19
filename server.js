@@ -664,9 +664,10 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
   const itemsRevenueMad = Number(
     items.reduce((total, item) => total + item.lineRevenueMad, 0).toFixed(2),
   );
-  const totalRevenueMad = Number((itemsRevenueMad + deliveryPriceMad).toFixed(2));
+  const customerTotalMad = Number((itemsRevenueMad + deliveryPriceMad).toFixed(2));
+  const totalRevenueMad = itemsRevenueMad;
   const totalCostMad = Number(items.reduce((total, item) => total + item.lineCostMad, 0).toFixed(2));
-  const totalProfitMad = Number((totalRevenueMad - totalCostMad).toFixed(2));
+  const totalProfitMad = Number((itemsRevenueMad - totalCostMad).toFixed(2));
 
   return {
     id: recordId,
@@ -686,6 +687,7 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
     items,
     totalQty: items.reduce((total, item) => total + item.qty, 0),
     itemsRevenueMad,
+    customerTotalMad,
     totalRevenueMad,
     totalCostMad,
     totalProfitMad,
@@ -792,7 +794,7 @@ function writeInvoicePdf(response, order, settings, options = {}) {
         style: "currency",
         currency: "MAD",
         maximumFractionDigits: 2,
-      }).format(order.totalRevenueMad),
+      }).format(order.customerTotalMad ?? order.totalRevenueMad),
       438,
       cursorY - 2,
       { width: 110, align: "right" },
