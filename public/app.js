@@ -63,6 +63,7 @@ let activeOrderEditId = "";
 let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
+const selectedProductIdsForPurchase = new Set();
 const PAGE_CONFIG = {
   dashboard: {
     path: "/",
@@ -134,6 +135,7 @@ const refs = {
   activityList: document.querySelector("#activity-list"),
   productsTable: document.querySelector("#products-table"),
   productsPagination: document.querySelector("#products-pagination"),
+  productsCreatePurchaseButton: document.querySelector("#products-create-purchase-button"),
   purchasesList: document.querySelector("#purchases-list"),
   purchasesPagination: document.querySelector("#purchases-pagination"),
   shipmentsList: document.querySelector("#shipments-list"),
@@ -527,8 +529,16 @@ function formatNumber(value, digits = 2) {
   }).format(Number(value || 0));
 }
 
+function convertKgToGrams(value) {
+  return Math.round(Number(value || 0) * 1000);
+}
+
+function convertGramsToKg(value) {
+  return Number(value || 0) / 1000;
+}
+
 function formatWeight(value) {
-  return `${formatNumber(value, 3)} kg`;
+  return `${formatNumber(convertKgToGrams(value), 0)} g`;
 }
 
 function formatDate(value) {
@@ -797,6 +807,37 @@ function getProductById(productId) {
   return state.products.find((product) => product.id === productId);
 }
 
+function syncSelectedProductsForPurchase() {
+  const validProductIds = new Set(state.products.map((product) => product.id));
+
+  [...selectedProductIdsForPurchase].forEach((productId) => {
+    if (!validProductIds.has(productId)) {
+      selectedProductIdsForPurchase.delete(productId);
+    }
+  });
+}
+
+function getSelectedProductsForPurchase() {
+  syncSelectedProductsForPurchase();
+
+  return [...selectedProductIdsForPurchase]
+    .map((productId) => getProductById(productId))
+    .filter(Boolean);
+}
+
+function updateProductsCreatePurchaseButton() {
+  if (!refs.productsCreatePurchaseButton) {
+    return;
+  }
+
+  const selectedProducts = getSelectedProductsForPurchase();
+  refs.productsCreatePurchaseButton.hidden = selectedProducts.length === 0;
+  refs.productsCreatePurchaseButton.textContent =
+    selectedProducts.length <= 1
+      ? "Créer un achat"
+      : `Créer un achat (${formatNumber(selectedProducts.length, 0)})`;
+}
+
 function getTableRecord(tableKey, recordId) {
   return (state.tables[tableKey]?.items ?? []).find((item) => item.id === recordId) || null;
 }
@@ -885,7 +926,9 @@ function fillProductForm(product) {
   activeProductEditId = product.id;
   refs.productForm.elements.productId.value = product.id;
   refs.productForm.elements.name.value = product.name || "";
-  refs.productForm.elements.weightKg.value = product.weightKg ?? "";
+  refs.productForm.elements.weightKg.value = product.weightKg
+    ? String(convertKgToGrams(product.weightKg))
+    : "";
   refs.productForm.elements.minStockAlert.value = product.minStockAlert ?? 0;
   refs.productForm.elements.defaultPurchasePriceEur.value =
     product.defaultPurchasePriceEur ?? "";
@@ -1237,6 +1280,9 @@ function renderPagination(tableKey, container) {
 
 function renderProductsTable() {
   const items = state.tables.products.items ?? [];
+  const selectedProductIds = new Set(getSelectedProductsForPurchase().map((product) => product.id));
+
+  updateProductsCreatePurchaseButton();
 
   if (!items.length) {
     refs.productsTable.innerHTML = renderEmptyState(
@@ -1249,6 +1295,7 @@ function renderProductsTable() {
   refs.productsTable.innerHTML = `
     <table class="data-table">
       <colgroup>
+        <col class="table-col-select" />
         <col class="table-col-photo" />
         <col class="table-col-product" />
         <col class="table-col-compact" />
@@ -1262,6 +1309,7 @@ function renderProductsTable() {
       </colgroup>
       <thead>
         <tr>
+          <th></th>
           <th></th>
           <th>Produit</th>
           <th>Poids</th>
@@ -1282,6 +1330,15 @@ function renderProductsTable() {
 
               return `
               <tr>
+                <td>
+                  <label class="table-check">
+                    <input
+                      type="checkbox"
+                      data-product-purchase-select="${escapeHtml(product.id)}"
+                      ${selectedProductIds.has(product.id) ? "checked" : ""}
+                    />
+                  </label>
+                </td>
                 <td>
                   ${renderProductThumb({
                     imageUrl: product.imageUrl,
@@ -1976,6 +2033,7 @@ async function compressImageUpload(file, fallbackFileName = "image") {
 }
 
 function renderAll() {
+  syncSelectedProductsForPurchase();
   applyPageLayout();
   renderDashboardCards();
   renderLowStock();
@@ -2100,13 +2158,50 @@ function buildProductOptions(selectedId = "") {
     .join("")}`;
 }
 
+function renderLineItemProductPreview(productId) {
+  const product = getProductById(productId);
+
+  if (!product) {
+    return `
+      <div class="line-item-product-preview is-empty" data-row-product-preview>
+        <div class="line-item-product-copy">
+          <strong>Produit non sélectionné</strong>
+          <small>Choisis un produit pour afficher sa photo, son poids et son prix.</small>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="line-item-product-preview" data-row-product-preview>
+      ${renderProductThumb({
+        imageUrl: product.imageUrl,
+        label: product.name,
+        className: "line-item-product-thumb",
+        fallback: product.name.slice(0, 2).toUpperCase(),
+        button: true,
+      })}
+      <div class="line-item-product-copy">
+        <strong>${escapeHtml(product.name)}</strong>
+        <small>${escapeHtml(
+          `${formatWeight(product.weightKg)} · achat défaut ${formatCurrency(
+            product.defaultPurchasePriceEur,
+            "EUR",
+          )}`,
+        )}</small>
+      </div>
+    </div>
+  `;
+}
+
 function createRowTemplate(type, values = {}) {
   if (type === "purchase") {
     return `
       <div class="line-item-row" data-type="purchase">
         <div class="field grow">
           <span>Produit</span>
-          <select data-field="productId">${buildProductOptions(values.productId)}</select>
+          ${renderLineItemProductPreview(values.productId)}
+          <input data-field="productId" type="hidden" value="${escapeHtml(values.productId || "")}" />
         </div>
         <div class="field compact">
           <span>Quantité</span>
@@ -2124,7 +2219,6 @@ function createRowTemplate(type, values = {}) {
             value="${escapeHtml(values.unitPurchasePriceEur || "")}"
           />
         </div>
-        <button class="ghost-button row-remove" type="button" data-remove-row>Retirer</button>
         <p class="row-hint" data-row-hint></p>
       </div>
     `;
@@ -2201,9 +2295,19 @@ function updateRowsForType(type) {
   const container = formTypes[type].container;
 
   [...container.querySelectorAll(".line-item-row")].forEach((row) => {
-    const select = row.querySelector('[data-field="productId"]');
-    const selectedId = select.value;
-    select.innerHTML = buildProductOptions(selectedId);
+    const productField = row.querySelector('[data-field="productId"]');
+    const selectedId = productField?.value || "";
+
+    if (productField?.tagName === "SELECT") {
+      productField.innerHTML = buildProductOptions(selectedId);
+    }
+
+    const preview = row.querySelector("[data-row-product-preview]");
+
+    if (preview) {
+      preview.outerHTML = renderLineItemProductPreview(selectedId);
+    }
+
     updateRowHint(row, type);
   });
 }
@@ -2430,7 +2534,32 @@ function resetDynamicForm(form, type) {
 
   const container = formTypes[type].container;
   container.innerHTML = "";
+
+  if (type === "purchase") {
+    prefillPurchaseRows(getSelectedProductsForPurchase().map((product) => product.id));
+    return;
+  }
+
   addLineItemRow(type);
+  updateAllSummaries();
+}
+
+function prefillPurchaseRows(productIds = []) {
+  const container = formTypes.purchase.container;
+  const uniqueProductIds = [...new Set(productIds)].filter((productId) => getProductById(productId));
+
+  container.innerHTML = "";
+
+  uniqueProductIds.forEach((productId) => {
+    const product = getProductById(productId);
+
+    addLineItemRow("purchase", {
+      productId,
+      qty: 1,
+      unitPurchasePriceEur: product?.defaultPurchasePriceEur ?? "",
+    });
+  });
+
   updateAllSummaries();
 }
 
@@ -2463,12 +2592,34 @@ function resetFormForModal(modalId) {
   }
 }
 
+function openPurchaseFromSelectedProducts() {
+  const selectedProducts = getSelectedProductsForPurchase();
+
+  if (!selectedProducts.length) {
+    showFlash("Sélectionne au moins un produit pour préparer un achat.", "error");
+    return;
+  }
+
+  closeQuickCreateMenu();
+  setModalFormError("purchase");
+  resetDynamicForm(refs.purchaseForm, "purchase");
+  prefillPurchaseRows(selectedProducts.map((product) => product.id));
+  navigateToPath("/purchases");
+  openModal("purchase-modal");
+}
+
 function openCreateFlow(button) {
   const modalId = button.dataset.openModal;
   const targetPath = button.dataset.modalPath;
   const formType = button.dataset.formType;
 
   closeQuickCreateMenu();
+
+  if (formType === "purchase") {
+    navigateToPath("/products");
+    openPurchaseFromSelectedProducts();
+    return;
+  }
 
   if (formType) {
     resetFormForType(formType);
@@ -2825,7 +2976,7 @@ async function handleProductSubmit(event) {
     const isEditing = Boolean(productId);
     const payload = {
       name: productName,
-      weightKg: Number(form.elements.weightKg.value),
+      weightKg: convertGramsToKg(form.elements.weightKg.value),
       defaultPurchasePriceEur: Number(form.elements.defaultPurchasePriceEur.value),
       defaultSalePriceMad: Number(form.elements.defaultSalePriceMad.value),
       minStockAlert: Number(form.elements.minStockAlert.value),
@@ -2928,6 +3079,11 @@ async function handlePurchaseSubmit(event) {
       body: payload,
     });
     Object.assign(state, result.appState);
+
+    if (!isEditing) {
+      selectedProductIdsForPurchase.clear();
+    }
+
     closeModal("purchase-modal");
     await refreshTableData(["purchases", "products"]);
     showFlash(result.message);
@@ -3313,6 +3469,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const productsCreatePurchaseButton = event.target.closest("#products-create-purchase-button");
+
+  if (productsCreatePurchaseButton) {
+    openPurchaseFromSelectedProducts();
+    return;
+  }
+
   const openModalButton = event.target.closest("[data-open-modal]");
 
   if (openModalButton) {
@@ -3549,6 +3712,30 @@ function handleFormInput(event) {
 }
 
 function handleDocumentChange(event) {
+  const productPurchaseSelect = event.target.closest("[data-product-purchase-select]");
+
+  if (productPurchaseSelect) {
+    if (productPurchaseSelect.checked) {
+      selectedProductIdsForPurchase.add(productPurchaseSelect.dataset.productPurchaseSelect);
+    } else {
+      selectedProductIdsForPurchase.delete(productPurchaseSelect.dataset.productPurchaseSelect);
+    }
+
+    updateProductsCreatePurchaseButton();
+    return;
+  }
+
+  const productSelect = event.target.closest('.line-item-row [data-field="productId"]');
+
+  if (productSelect) {
+    const row = productSelect.closest(".line-item-row");
+
+    if (row) {
+      updateRowsForType(row.dataset.type);
+      updateAllSummaries();
+    }
+  }
+
   const orderStatusSelect = event.target.closest("[data-order-status-select]");
 
   if (orderStatusSelect) {
@@ -3587,6 +3774,7 @@ function bindEvents() {
 
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("keydown", handleDocumentKeydown);
+  document.addEventListener("change", handleDocumentChange);
   refs.shipmentForm.addEventListener("input", handleFormInput);
   refs.orderForm.addEventListener("input", handleFormInput);
   refs.purchaseForm.addEventListener("input", handleFormInput);

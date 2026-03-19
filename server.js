@@ -1116,7 +1116,7 @@ app.post(
       const product = {
         id: createId("prd"),
         name: productName,
-        weightKg: requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 }),
+        weightKg: requireNumber(request.body.weightKg, "Poids produit", { min: 0.001 }),
         defaultPurchasePriceEur: requireNumber(
           request.body.defaultPurchasePriceEur,
           "Prix d'achat EUR",
@@ -1168,7 +1168,7 @@ app.put(
       assertUniqueProductName(store, productName, product.id);
 
       product.name = productName;
-      product.weightKg = requireNumber(request.body.weightKg, "Poids (kg)", { min: 0.001 });
+      product.weightKg = requireNumber(request.body.weightKg, "Poids produit", { min: 0.001 });
       product.defaultPurchasePriceEur = requireNumber(
         request.body.defaultPurchasePriceEur,
         "Prix d'achat EUR",

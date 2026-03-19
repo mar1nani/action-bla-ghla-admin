@@ -450,6 +450,16 @@
                 <p class="eyebrow">Catalogue complet</p>
                 <h3>Produits et stocks</h3>
               </div>
+              <div class="section-head-inline-actions">
+                <button
+                  id="products-create-purchase-button"
+                  class="primary-button section-action-button"
+                  type="button"
+                  hidden
+                >
+                  Créer un achat
+                </button>
+              </div>
             </div>
             <div class="table-shell">
               <div id="products-table"></div>
@@ -483,8 +493,8 @@
                 </label>
                 <div class="field-row">
                   <label class="field field-compact-xs">
-                    <span>Poids (kg)</span>
-                    <input name="weightKg" type="number" min="0.001" step="0.001" required />
+                    <span>Poids (g)</span>
+                    <input name="weightKg" type="number" min="1" step="1" required />
                   </label>
                   <label class="field field-compact-xs">
                     <span>Seuil stock faible</span>
@@ -656,10 +666,7 @@
                   </div>
                 </div>
                 <div class="line-items-head">
-                  <p>Lignes achat</p>
-                  <button class="ghost-button" type="button" data-add-row="purchase">
-                    Ajouter une ligne
-                  </button>
+                  <p>Produits sélectionnés</p>
                 </div>
                 <div id="purchase-items" class="line-items"></div>
                 <div id="purchase-summary" class="summary-box"></div>
