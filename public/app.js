@@ -523,6 +523,24 @@ function renderProductThumb({
   `;
 }
 
+function renderPurchaseInvoiceThumb(purchase) {
+  if (!purchase.invoiceImageUrl) {
+    return `<span class="table-media-empty">-</span>`;
+  }
+
+  const label = purchase.orderNumber
+    ? `Facture ${purchase.orderNumber}`
+    : `Facture ${purchase.supplierName || "fournisseur"}`;
+
+  return renderProductThumb({
+    imageUrl: purchase.invoiceImageUrl,
+    label,
+    className: "product-thumb-table purchase-invoice-thumb",
+    fallback: "FA",
+    button: true,
+  });
+}
+
 function isModifiedNavigation(event) {
   return (
     event.defaultPrevented ||
@@ -563,7 +581,15 @@ function convertGramsToKg(value) {
 }
 
 function formatWeight(value) {
-  return `${formatNumber(convertKgToGrams(value), 0)} g`;
+  const weightKg = Number(value || 0);
+  const weightGrams = convertKgToGrams(weightKg);
+
+  if (weightGrams >= 1000) {
+    const digits = Number.isInteger(weightKg) ? 0 : 2;
+    return `${formatNumber(weightKg, digits)} kg`;
+  }
+
+  return `${formatNumber(weightGrams, 0)} g`;
 }
 
 function formatDate(value) {
@@ -1527,9 +1553,20 @@ function renderPurchases() {
 
   refs.purchasesList.innerHTML = `
     <table class="data-table">
+      <colgroup>
+        <col class="table-col-date" />
+        <col class="table-col-photo" />
+        <col class="table-col-medium" />
+        <col class="table-col-medium" />
+        <col class="table-col-small" />
+        <col class="table-col-small" />
+        <col class="table-col-small" />
+        <col class="table-col-actions" />
+      </colgroup>
       <thead>
         <tr>
           <th>Date</th>
+          <th>Photo</th>
           <th>Fournisseur</th>
           <th>Articles</th>
           <th>Qté</th>
@@ -1544,6 +1581,7 @@ function renderPurchases() {
             (purchase) => `
               <tr>
                 <td>${escapeHtml(formatDate(purchase.orderedAt))}</td>
+                <td class="table-media-cell">${renderPurchaseInvoiceThumb(purchase)}</td>
                 <td>${renderPrimaryTableCell(
                   purchase.supplierName,
                   purchase.orderNumber || "Sans référence",
