@@ -611,6 +611,22 @@ function readSourcePurchaseIds(value) {
   return [...new Set(value.map((entry) => optionalString(entry)).filter(Boolean))];
 }
 
+function normalizePurchaseItemsForComparison(items = []) {
+  return [...(items ?? [])]
+    .map((item) => ({
+      productId: item.productId,
+      qty: Number(item.qty || 0),
+      unitPurchasePriceEur: Number(item.unitPurchasePriceEur || 0),
+    }))
+    .sort((left, right) => left.productId.localeCompare(right.productId));
+}
+
+function linkedShipmentForPurchase(store, purchaseId) {
+  return store.shipments.find((shipment) =>
+    (shipment.sourcePurchaseIds ?? []).includes(purchaseId),
+  );
+}
+
 function validateShipmentSourcePurchases(store, sourcePurchaseIds, currentShipmentId = "") {
   const normalizedIds = readSourcePurchaseIds(sourcePurchaseIds);
 
@@ -1456,7 +1472,18 @@ app.put(
         store,
         request.params.purchaseId,
       );
+      const linkedShipment = linkedShipmentForPurchase(store, request.params.purchaseId);
       nextPurchase.invoiceImageUrl = existingPurchase.invoiceImageUrl || "";
+
+      if (
+        linkedShipment &&
+        JSON.stringify(normalizePurchaseItemsForComparison(nextPurchase.items)) !==
+          JSON.stringify(normalizePurchaseItemsForComparison(existingPurchase.items))
+      ) {
+        throw createValidationError(
+          "Cet achat est déjà lié à un envoi. Les articles, quantités et prix d'achat ne peuvent plus être modifiés.",
+        );
+      }
 
       if (request.body.invoiceImageUpload?.dataUrl) {
         nextPurchase.invoiceImageUrl = await persistPurchaseInvoiceImage(

@@ -84,6 +84,7 @@ let activeOrderEditId = "";
 let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
+let activePurchaseItemsEditable = false;
 const selectedProductIdsForPurchase = new Set();
 const selectedPurchaseIdsForShipment = new Set();
 const expandedPurchaseIds = new Set();
@@ -199,6 +200,7 @@ const refs = {
   purchaseFormTitle: document.querySelector("#purchase-form-title"),
   purchaseSubmitButton: document.querySelector("#purchase-submit-button"),
   purchaseFormError: document.querySelector("#purchase-form-error"),
+  purchaseAddRowButton: document.querySelector("#purchase-add-row-button"),
   purchaseInvoiceFile: document.querySelector("#purchase-invoice-file"),
   purchaseInvoicePreview: document.querySelector("#purchase-invoice-preview"),
   purchaseInvoicePreviewImage: document.querySelector("#purchase-invoice-preview-image"),
@@ -544,6 +546,14 @@ function renderPurchaseInvoiceThumb(purchase) {
     fallback: "FA",
     button: true,
   });
+}
+
+function setPurchaseItemsEditMode(isEditable) {
+  activePurchaseItemsEditable = Boolean(isEditable);
+
+  if (refs.purchaseAddRowButton) {
+    refs.purchaseAddRowButton.hidden = !activePurchaseItemsEditable;
+  }
 }
 
 function renderPurchaseItemsDetails(purchase) {
@@ -1166,6 +1176,7 @@ function fillProductForm(product) {
 function setPurchaseFormMode(purchase = null) {
   activePurchaseEditId = purchase?.id || "";
   setModalFormError("purchase");
+  setPurchaseItemsEditMode(Boolean(purchase?.canCreateShipment));
   refs.purchaseId.value = activePurchaseEditId;
   refs.purchaseFormTitle.textContent = activePurchaseEditId ? "Modifier l'achat" : "Nouvel achat";
   refs.purchaseSubmitButton.textContent = activePurchaseEditId
@@ -2460,6 +2471,38 @@ function renderLineItemProductPreview(productId, mode = "purchase") {
 
 function createRowTemplate(type, values = {}) {
   if (type === "purchase") {
+    if (values.editableProduct) {
+      return `
+        <div class="line-item-row is-editable-product" data-type="purchase">
+          <div class="field grow">
+            <span>Produit</span>
+            <select data-field="productId">${buildProductOptions(values.productId)}</select>
+          </div>
+          <div class="field compact">
+            <span>Quantité</span>
+            <input data-field="qty" type="number" min="1" step="1" value="${escapeHtml(
+              values.qty || 1,
+            )}" />
+          </div>
+          <div class="field compact">
+            <span>Prix d'achat EUR</span>
+            <input
+              data-field="unitPurchasePriceEur"
+              type="number"
+              min="0"
+              step="0.01"
+              value="${escapeHtml(values.unitPurchasePriceEur || "")}"
+            />
+            <small class="row-inline-total" data-row-inline-total></small>
+          </div>
+          <button class="ghost-button row-remove" type="button" data-remove-row>
+            ${renderIcon("delete")}
+          </button>
+          <p class="row-hint" data-row-hint></p>
+        </div>
+      `;
+    }
+
     return `
       <div class="line-item-row" data-type="purchase">
         <div class="field grow">
@@ -2471,7 +2514,7 @@ function createRowTemplate(type, values = {}) {
           <span>Quantité</span>
           <input data-field="qty" type="number" min="1" step="1" value="${escapeHtml(
             values.qty || 1,
-          )}" />
+          )}" ${values.readOnly ? "readonly" : ""} />
         </div>
         <div class="field compact">
           <span>Prix d'achat EUR</span>
@@ -2481,6 +2524,7 @@ function createRowTemplate(type, values = {}) {
             min="0"
             step="0.01"
             value="${escapeHtml(values.unitPurchasePriceEur || "")}"
+            ${values.readOnly ? "readonly" : ""}
           />
           <small class="row-inline-total" data-row-inline-total></small>
         </div>
@@ -2595,7 +2639,11 @@ function createRowTemplate(type, values = {}) {
 
 function addLineItemRow(type, values = {}) {
   const container = formTypes[type].container;
-  container.insertAdjacentHTML("beforeend", createRowTemplate(type, values));
+  const rowValues =
+    type === "purchase" && activePurchaseItemsEditable
+      ? { editableProduct: true, ...values }
+      : values;
+  container.insertAdjacentHTML("beforeend", createRowTemplate(type, rowValues));
   updateRowsForType(type);
 }
 
@@ -2847,6 +2895,7 @@ function resetDynamicForm(form, type) {
 
   if (type === "purchase") {
     setPurchaseFormMode();
+    setPurchaseItemsEditMode(false);
     form.elements.supplierName.value = "Action";
     form.elements.orderedAt.value = todayInputValue();
     resetPurchaseInvoiceSelection();
@@ -3133,6 +3182,7 @@ function fillDynamicForm(form, type, record) {
     addLineItemRow(type, {
       productId: item.productId,
       qty: item.qty,
+      readOnly: type === "purchase" && Boolean(record?.id) && !record.canCreateShipment,
       lockedProduct: type === "shipment" && activeShipmentSourcePurchaseIds.length > 0,
       unitPurchasePriceEur: item.unitPurchasePriceEur,
       unitSalePriceMad: item.unitSalePriceMad,

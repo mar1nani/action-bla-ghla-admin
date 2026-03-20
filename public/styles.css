@@ -2577,6 +2577,10 @@ body.sidebar-collapsed .sidebar-footer::before {
   grid-template-columns: minmax(0, 1.9fr) 104px 150px;
 }
 
+.line-item-row[data-type="purchase"].is-editable-product {
+  grid-template-columns: minmax(0, 1.8fr) 104px 150px 42px;
+}
+
 .line-item-row[data-type="order"].is-locked-product {
   grid-template-columns: minmax(0, 1.9fr) 104px 150px;
 }
@@ -4810,5 +4814,92 @@ body.mobile-sidebar-open .sidebar-backdrop {
     left: 8px;
     right: 8px;
     bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 980px) {
+  .topbar.topbar-compact {
+    min-height: 46px;
+    padding: 4px 8px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    align-items: center;
+    border-radius: 0 0 18px 18px;
+    box-shadow:
+      0 8px 18px rgba(16, 41, 83, 0.1),
+      0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  .topbar-meta,
+  .topbar-utility {
+    flex-wrap: nowrap;
+    width: auto;
+    min-width: 0;
+  }
+
+  .topbar-meta {
+    margin-left: auto;
+  }
+
+  .topbar-sidebar-toggle {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    border-radius: 10px;
+    margin-right: auto;
+  }
+
+  .topbar-sidebar-toggle svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .profile-trigger {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .profile-trigger .profile-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
+    box-shadow:
+      0 6px 12px rgba(12, 41, 84, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .profile-trigger:hover,
+  .profile-trigger:focus-visible {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  #products-table .data-table {
+    min-width: 1440px;
+  }
+
+  #products-table .table-col-product {
+    width: 420px;
+  }
+
+  #products-table .table-primary-cell strong {
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #products-table .table-primary-cell small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
