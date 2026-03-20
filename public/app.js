@@ -85,6 +85,7 @@ let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
 const selectedProductIdsForPurchase = new Set();
+const expandedPurchaseIds = new Set();
 const tableFilters = structuredClone(DEFAULT_TABLE_FILTERS);
 const PAGE_CONFIG = {
   dashboard: {
@@ -539,6 +540,53 @@ function renderPurchaseInvoiceThumb(purchase) {
     fallback: "FA",
     button: true,
   });
+}
+
+function renderPurchaseItemsDetails(purchase) {
+  return `
+    <div class="purchase-detail-panel">
+      <div class="purchase-detail-head">
+        <div>
+          <strong>Détail des articles</strong>
+          <small>${escapeHtml(
+            `${purchase.items.length} ligne${purchase.items.length > 1 ? "s" : ""} · ${formatNumber(
+              purchase.totalQty,
+              0,
+            )} pièces`,
+          )}</small>
+        </div>
+        <span>${escapeHtml(formatCurrency(purchase.totalCostEur, "EUR"))}</span>
+      </div>
+      <div class="purchase-detail-table-shell">
+        <table class="purchase-detail-table">
+          <thead>
+            <tr>
+              <th>Article</th>
+              <th>Qté</th>
+              <th>Poids</th>
+              <th>Prix unité</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(purchase.items ?? [])
+              .map(
+                (item) => `
+                  <tr>
+                    <td>${escapeHtml(item.productName)}</td>
+                    <td>${escapeHtml(formatNumber(item.qty, 0))}</td>
+                    <td>${escapeHtml(formatWeight(item.lineWeightKg))}</td>
+                    <td>${escapeHtml(formatCurrency(item.unitPurchasePriceEur, "EUR"))}</td>
+                    <td>${escapeHtml(formatCurrency(item.lineTotalEur, "EUR"))}</td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function isModifiedNavigation(event) {
@@ -1557,7 +1605,6 @@ function renderPurchases() {
         <col class="table-col-date" />
         <col class="table-col-photo" />
         <col class="table-col-medium" />
-        <col class="table-col-medium" />
         <col class="table-col-small" />
         <col class="table-col-small" />
         <col class="table-col-small" />
@@ -1568,7 +1615,6 @@ function renderPurchases() {
           <th>Date</th>
           <th>Photo</th>
           <th>Fournisseur</th>
-          <th>Articles</th>
           <th>Qté</th>
           <th>Poids</th>
           <th>Total</th>
@@ -1577,18 +1623,16 @@ function renderPurchases() {
       </thead>
       <tbody>
         ${items
-          .map(
-            (purchase) => `
+          .map((purchase) => {
+            const isExpanded = expandedPurchaseIds.has(purchase.id);
+
+            return `
               <tr>
                 <td>${escapeHtml(formatDate(purchase.orderedAt))}</td>
                 <td class="table-media-cell">${renderPurchaseInvoiceThumb(purchase)}</td>
                 <td>${renderPrimaryTableCell(
                   purchase.supplierName,
                   purchase.orderNumber || "Sans référence",
-                )}</td>
-                <td>${renderTableLines(
-                  purchase.items,
-                  (item) => `${item.productName} x${formatNumber(item.qty, 0)}`,
                 )}</td>
                 <td>${escapeHtml(formatNumber(purchase.totalQty, 0))}</td>
                 <td>${escapeHtml(formatWeight(purchase.totalWeightKg))}</td>
@@ -1598,14 +1642,11 @@ function renderPurchases() {
                     <button
                       class="ghost-button table-action-button"
                       type="button"
-                      data-purchase-invoice-view="${escapeHtml(purchase.id)}"
-                      title="${
-                        purchase.invoiceImageUrl
-                          ? "Voir la facture"
-                          : "Aucune photo de facture"
-                      }"
-                      aria-label="Voir la photo de facture"
-                      ${purchase.invoiceImageUrl ? "" : "disabled"}
+                      data-purchase-details-toggle="${escapeHtml(purchase.id)}"
+                      title="${isExpanded ? "Masquer les articles" : "Afficher les articles"}"
+                      aria-label="${isExpanded ? "Masquer les articles" : "Afficher les articles"}"
+                      aria-expanded="${isExpanded ? "true" : "false"}"
+                      ${isExpanded ? 'data-active="true"' : ""}
                     >
                       ${renderIcon("view")}
                     </button>
@@ -1630,8 +1671,17 @@ function renderPurchases() {
                   </div>
                 </td>
               </tr>
-            `,
-          )
+              ${
+                isExpanded
+                  ? `
+                    <tr class="purchase-detail-row">
+                      <td colspan="7">${renderPurchaseItemsDetails(purchase)}</td>
+                    </tr>
+                  `
+                  : ""
+              }
+            `;
+          })
           .join("")}
       </tbody>
     </table>
@@ -3831,6 +3881,21 @@ function handleDocumentClick(event) {
       openModal("purchase-modal");
     }
 
+    return;
+  }
+
+  const purchaseDetailsButton = event.target.closest("[data-purchase-details-toggle]");
+
+  if (purchaseDetailsButton) {
+    const purchaseId = purchaseDetailsButton.dataset.purchaseDetailsToggle;
+
+    if (expandedPurchaseIds.has(purchaseId)) {
+      expandedPurchaseIds.delete(purchaseId);
+    } else {
+      expandedPurchaseIds.add(purchaseId);
+    }
+
+    renderPurchases();
     return;
   }
 
