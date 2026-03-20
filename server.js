@@ -603,6 +603,36 @@ function createInitialStockPurchase(product, qty) {
   };
 }
 
+function readSourcePurchaseIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((entry) => optionalString(entry)).filter(Boolean))];
+}
+
+function validateShipmentSourcePurchases(store, sourcePurchaseIds, currentShipmentId = "") {
+  const normalizedIds = readSourcePurchaseIds(sourcePurchaseIds);
+
+  normalizedIds.forEach((purchaseId) => {
+    findRecord(store.purchases, purchaseId, "Achat");
+  });
+
+  const duplicateShipment = store.shipments.find(
+    (shipment) =>
+      shipment.id !== currentShipmentId &&
+      (shipment.sourcePurchaseIds ?? []).some((purchaseId) => normalizedIds.includes(purchaseId)),
+  );
+
+  if (duplicateShipment) {
+    throw createValidationError(
+      "Un des achats sélectionnés est déjà rattaché à un autre envoi.",
+    );
+  }
+
+  return normalizedIds;
+}
+
 function productHasHistory(productId, store) {
   const collections = [store.purchases, store.shipments, store.orders];
 
@@ -657,19 +687,53 @@ function buildPurchaseRecord(payload, store, recordId = createId("buy")) {
 }
 
 function buildShipmentRecord(payload, store, recordId = createId("shp")) {
-  const metricsById = getProductMetricsMap(store);
-  const rawItems = readItemArray(payload.items).map((item) => {
+  const shipmentBeingEdited = store.shipments.find((entry) => entry.id === recordId);
+  const stockStore = shipmentBeingEdited
+    ? {
+        ...store,
+        shipments: store.shipments.filter((entry) => entry.id !== recordId),
+      }
+    : store;
+  const metricsById = getProductMetricsMap(stockStore);
+  const sourcePurchaseIds = validateShipmentSourcePurchases(
+    store,
+    payload.sourcePurchaseIds,
+    recordId,
+  );
+  const rawItemsSource = sourcePurchaseIds.length
+    ? sourcePurchaseIds.flatMap((purchaseId) => {
+        const purchase = findRecord(store.purchases, purchaseId, "Achat");
+
+        return (purchase.items ?? []).map((item) => ({
+          productId: item.productId,
+          qty: item.qty,
+        }));
+      })
+    : readItemArray(payload.items);
+
+  const aggregatedSourceItems = new Map();
+
+  rawItemsSource.forEach((item) => {
     const product = findProduct(item.productId, store);
     const qty = requireInteger(item.qty, "Quantité envoyée", { min: 1 });
     const metric = metricsById.get(product.id);
+    const existing = aggregatedSourceItems.get(product.id);
 
-    return {
+    if (existing) {
+      existing.qty += qty;
+      existing.weightKg = Number((existing.qty * product.weightKg).toFixed(3));
+      return;
+    }
+
+    aggregatedSourceItems.set(product.id, {
       product,
       qty,
       weightKg: Number((qty * product.weightKg).toFixed(3)),
       avgPurchaseCostEur: metric.avgPurchaseCostEur,
-    };
+    });
   });
+
+  const rawItems = [...aggregatedSourceItems.values()];
 
   const packageWeightKg = requireNumber(payload.packageWeightKg, "Poids du colis", {
     min: 0.001,
@@ -708,6 +772,7 @@ function buildShipmentRecord(payload, store, recordId = createId("shp")) {
     shippedAt: toRecordDate(payload.shippedAt),
     status,
     responsibleName: "MALAK",
+    sourcePurchaseIds,
     reference: optionalString(payload.reference),
     packageWeightKg,
     shippingPriceEur,
@@ -1465,8 +1530,14 @@ app.put(
         throw createNotFoundError("Envoi introuvable.");
       }
 
+      const existingShipment = store.shipments[shipmentIndex];
+
       store.shipments[shipmentIndex] = buildShipmentRecord(
-        request.body,
+        {
+          ...request.body,
+          sourcePurchaseIds:
+            request.body.sourcePurchaseIds ?? existingShipment.sourcePurchaseIds ?? [],
+        },
         store,
         request.params.shipmentId,
       );
@@ -1517,6 +1588,7 @@ app.patch(
       }
 
       shipment.status = nextStatus;
+      assertNonNegativeStocks(store);
       return store;
     });
 

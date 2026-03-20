@@ -8,6 +8,8 @@
       name="description"
       content="Application de gestion de stock, achats, envois vers le Maroc, commandes clients et statistiques."
     />
+    <link rel="icon" type="image/png" href="/assets/logo-action-bla-ghla.png" />
+    <link rel="apple-touch-icon" href="/assets/logo-action-bla-ghla.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -628,6 +630,16 @@
                 <p class="eyebrow">Historique</p>
                 <h3>Commandes fournisseur</h3>
               </div>
+              <div class="section-head-inline-actions">
+                <button
+                  id="purchases-create-shipment-button"
+                  class="primary-button section-action-button"
+                  type="button"
+                  hidden
+                >
+                  Créer un envoi
+                </button>
+              </div>
             </div>
             <form class="table-filters" data-table-filter-form="purchases">
               <div class="field-row table-filters-row">
@@ -847,7 +859,12 @@
                 </label>
                 <div class="line-items-head">
                   <p>Produits envoyés</p>
-                  <button class="ghost-button" type="button" data-add-row="shipment">
+                  <button
+                    id="shipment-add-row-button"
+                    class="ghost-button"
+                    type="button"
+                    data-add-row="shipment"
+                  >
                     Ajouter une ligne
                   </button>
                 </div>

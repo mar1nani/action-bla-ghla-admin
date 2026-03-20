@@ -904,7 +904,14 @@ body.sidebar-collapsed .sidebar-footer::before {
 }
 
 .table-filters-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px 180px auto;
   align-items: end;
+  gap: 14px;
+}
+
+.table-filters-row > .field {
+  min-width: 0;
 }
 
 .table-filter-actions {
@@ -912,6 +919,7 @@ body.sidebar-collapsed .sidebar-footer::before {
   align-items: center;
   gap: 10px;
   justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
 .table-filter-actions .ghost-button,
@@ -1901,6 +1909,15 @@ body.is-ready .section:not([hidden]) {
     width: 100%;
   }
 
+  .table-filters-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .table-filters-row > .field:first-child,
+  .table-filters-row > .table-filter-actions {
+    grid-column: 1 / -1;
+  }
+
   .field-compact-xs,
   .field-compact-sm,
   .field-compact-md,
@@ -2566,6 +2583,10 @@ body.sidebar-collapsed .sidebar-footer::before {
 
 .line-item-row[data-type="shipment"] {
   grid-template-columns: minmax(0, 1.8fr) 104px 42px;
+}
+
+.line-item-row[data-type="shipment"].is-locked-product {
+  grid-template-columns: minmax(0, 1.9fr) 104px;
 }
 
 .row-remove {
@@ -3600,7 +3621,7 @@ body.mobile-sidebar-open .sidebar-backdrop {
 }
 
 #purchases-list .data-table {
-  min-width: 940px;
+  min-width: 990px;
 }
 
 #shipments-list .data-table {
@@ -3668,6 +3689,10 @@ body.mobile-sidebar-open .sidebar-backdrop {
   text-align: left;
 }
 
+#purchases-list .table-primary-cell small {
+  white-space: normal;
+}
+
 #products-table .table-primary-cell {
   gap: 3px;
 }
@@ -3696,6 +3721,10 @@ body.mobile-sidebar-open .sidebar-backdrop {
   width: 17px;
   height: 17px;
   accent-color: #0057b8;
+}
+
+.table-check input:disabled {
+  opacity: 0.45;
 }
 
 .stock-pair {
@@ -4521,33 +4550,11 @@ body.mobile-sidebar-open .sidebar-backdrop {
   }
 
   .topbar-mobile-title-shell {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-    margin-right: auto;
-  }
-
-  .topbar-mobile-label {
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(12, 41, 84, 0.48);
-  }
-
-  .topbar-mobile-title {
-    display: block;
-    min-width: 0;
-    font-size: 0.98rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    color: #0c2954;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
   }
 
   .topbar.topbar-compact {
+    justify-content: space-between;
     gap: 12px;
     min-height: 66px;
     padding: 10px 12px;
@@ -4560,15 +4567,16 @@ body.mobile-sidebar-open .sidebar-backdrop {
   .topbar-meta {
     width: auto;
     min-width: auto;
-    margin-left: 0;
+    margin-left: auto;
   }
 
   .topbar-utility {
+    justify-content: flex-end;
     gap: 8px;
   }
 
   .quick-create {
-    position: static;
+    display: none;
   }
 
   .quick-create-toggle {

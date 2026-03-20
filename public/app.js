@@ -85,8 +85,10 @@ let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
 const selectedProductIdsForPurchase = new Set();
+const selectedPurchaseIdsForShipment = new Set();
 const expandedPurchaseIds = new Set();
 const tableFilters = structuredClone(DEFAULT_TABLE_FILTERS);
+let activeShipmentSourcePurchaseIds = [];
 const PAGE_CONFIG = {
   dashboard: {
     path: "/",
@@ -163,6 +165,7 @@ const refs = {
   productsCreateOrderButton: document.querySelector("#products-create-order-button"),
   purchasesList: document.querySelector("#purchases-list"),
   purchasesPagination: document.querySelector("#purchases-pagination"),
+  purchasesCreateShipmentButton: document.querySelector("#purchases-create-shipment-button"),
   shipmentsList: document.querySelector("#shipments-list"),
   shipmentsPagination: document.querySelector("#shipments-pagination"),
   ordersList: document.querySelector("#orders-list"),
@@ -206,6 +209,7 @@ const refs = {
   shipmentFormTitle: document.querySelector("#shipment-form-title"),
   shipmentSubmitButton: document.querySelector("#shipment-submit-button"),
   shipmentFormError: document.querySelector("#shipment-form-error"),
+  shipmentAddRowButton: document.querySelector("#shipment-add-row-button"),
   orderForm: document.querySelector("#order-form"),
   orderId: document.querySelector("#order-id"),
   orderFormTitle: document.querySelector("#order-form-title"),
@@ -906,6 +910,10 @@ function getProductById(productId) {
   return state.products.find((product) => product.id === productId);
 }
 
+function getPurchaseById(purchaseId) {
+  return state.purchases.find((purchase) => purchase.id === purchaseId);
+}
+
 function syncSelectedProductsForPurchase() {
   const validProductIds = new Set(state.products.map((product) => product.id));
 
@@ -921,6 +929,26 @@ function getSelectedProductsForPurchase() {
 
   return [...selectedProductIdsForPurchase]
     .map((productId) => getProductById(productId))
+    .filter(Boolean);
+}
+
+function syncSelectedPurchasesForShipment() {
+  const validPurchaseIds = new Set(
+    state.purchases.filter((purchase) => purchase.canCreateShipment).map((purchase) => purchase.id),
+  );
+
+  [...selectedPurchaseIdsForShipment].forEach((purchaseId) => {
+    if (!validPurchaseIds.has(purchaseId)) {
+      selectedPurchaseIdsForShipment.delete(purchaseId);
+    }
+  });
+}
+
+function getSelectedPurchasesForShipment() {
+  syncSelectedPurchasesForShipment();
+
+  return [...selectedPurchaseIdsForShipment]
+    .map((purchaseId) => getPurchaseById(purchaseId))
     .filter(Boolean);
 }
 
@@ -947,6 +975,21 @@ function updateProductsCreatePurchaseButton() {
         ? "Créer une commande"
         : `Créer une commande (${formatNumber(selectedProducts.length, 0)})`;
   }
+}
+
+function updatePurchasesCreateShipmentButton() {
+  if (!refs.purchasesCreateShipmentButton) {
+    return;
+  }
+
+  const selectedPurchases = getSelectedPurchasesForShipment();
+  const isHidden = selectedPurchases.length === 0;
+
+  refs.purchasesCreateShipmentButton.hidden = isHidden;
+  refs.purchasesCreateShipmentButton.textContent =
+    selectedPurchases.length <= 1
+      ? "Créer un envoi"
+      : `Créer un envoi (${formatNumber(selectedPurchases.length, 0)})`;
 }
 
 function getTableRecord(tableKey, recordId) {
@@ -1144,6 +1187,14 @@ function setShipmentFormMode(shipment = null) {
   refs.shipmentSubmitButton.textContent = activeShipmentEditId
     ? "Enregistrer les modifications"
     : "Enregistrer l'envoi";
+}
+
+function setShipmentSourceSelectionMode(purchaseIds = []) {
+  activeShipmentSourcePurchaseIds = [...new Set((purchaseIds ?? []).filter(Boolean))];
+
+  if (refs.shipmentAddRowButton) {
+    refs.shipmentAddRowButton.hidden = activeShipmentSourcePurchaseIds.length > 0;
+  }
 }
 
 function setOrderFormMode(order = null) {
@@ -1592,6 +1643,9 @@ function renderProductsTable() {
 
 function renderPurchases() {
   const items = state.tables.purchases.items ?? [];
+  const selectedPurchaseIds = new Set(getSelectedPurchasesForShipment().map((purchase) => purchase.id));
+
+  updatePurchasesCreateShipmentButton();
 
   if (!items.length) {
     refs.purchasesList.innerHTML = renderEmptyState("Aucun achat enregistré.");
@@ -1602,6 +1656,7 @@ function renderPurchases() {
   refs.purchasesList.innerHTML = `
     <table class="data-table">
       <colgroup>
+        <col class="table-col-select" />
         <col class="table-col-date" />
         <col class="table-col-photo" />
         <col class="table-col-medium" />
@@ -1612,6 +1667,7 @@ function renderPurchases() {
       </colgroup>
       <thead>
         <tr>
+          <th></th>
           <th>Date</th>
           <th>Photo</th>
           <th>Fournisseur</th>
@@ -1625,14 +1681,35 @@ function renderPurchases() {
         ${items
           .map((purchase) => {
             const isExpanded = expandedPurchaseIds.has(purchase.id);
+            const selectionTitle = purchase.canCreateShipment
+              ? "Sélectionner cet achat pour créer un envoi"
+              : `Déjà rattaché à un envoi${
+                  purchase.linkedShipmentStatus
+                    ? ` (${formatShipmentStatusLabel(purchase.linkedShipmentStatus)})`
+                    : ""
+                }`;
 
             return `
               <tr>
+                <td>
+                  <label class="table-check" title="${escapeHtml(selectionTitle)}">
+                    <input
+                      type="checkbox"
+                      data-purchase-shipment-select="${escapeHtml(purchase.id)}"
+                      ${selectedPurchaseIds.has(purchase.id) ? "checked" : ""}
+                      ${purchase.canCreateShipment ? "" : "disabled"}
+                    />
+                  </label>
+                </td>
                 <td>${escapeHtml(formatDate(purchase.orderedAt))}</td>
                 <td class="table-media-cell">${renderPurchaseInvoiceThumb(purchase)}</td>
                 <td>${renderPrimaryTableCell(
                   purchase.supplierName,
-                  purchase.orderNumber || "Sans référence",
+                  purchase.linkedShipmentId
+                    ? `${purchase.orderNumber || "Sans référence"} · envoi ${formatShipmentStatusLabel(
+                        purchase.linkedShipmentStatus,
+                      )}`
+                    : purchase.orderNumber || "Sans référence",
                 )}</td>
                 <td>${escapeHtml(formatNumber(purchase.totalQty, 0))}</td>
                 <td>${escapeHtml(formatWeight(purchase.totalWeightKg))}</td>
@@ -1675,7 +1752,7 @@ function renderPurchases() {
                 isExpanded
                   ? `
                     <tr class="purchase-detail-row">
-                      <td colspan="7">${renderPurchaseItemsDetails(purchase)}</td>
+                      <td colspan="8">${renderPurchaseItemsDetails(purchase)}</td>
                     </tr>
                   `
                   : ""
@@ -2413,6 +2490,34 @@ function createRowTemplate(type, values = {}) {
   }
 
   if (type === "shipment") {
+    if (values.lockedProduct) {
+      return `
+        <div class="line-item-row is-locked-product" data-type="shipment">
+          <div class="field grow">
+            <span>Produit</span>
+            ${renderLineItemProductPreview(values.productId, "shipment")}
+            <input
+              data-field="productId"
+              type="hidden"
+              value="${escapeHtml(values.productId || "")}"
+            />
+          </div>
+          <div class="field compact">
+            <span>Quantité</span>
+            <input
+              data-field="qty"
+              type="number"
+              min="1"
+              step="1"
+              readonly
+              value="${escapeHtml(values.qty || 1)}"
+            />
+          </div>
+          <p class="row-hint" data-row-hint></p>
+        </div>
+      `;
+    }
+
     return `
       <div class="line-item-row" data-type="shipment">
         <div class="field grow">
@@ -2749,6 +2854,7 @@ function resetDynamicForm(form, type) {
 
   if (type === "shipment") {
     setShipmentFormMode();
+    setShipmentSourceSelectionMode([]);
     form.elements.shippedAt.value = todayInputValue();
     form.elements.status.value = "achete";
   }
@@ -2816,6 +2922,40 @@ function prefillOrderRows(productIds = []) {
   updateAllSummaries();
 }
 
+function prefillShipmentRowsFromPurchases(purchases = []) {
+  const container = formTypes.shipment.container;
+  const aggregatedItems = new Map();
+
+  container.innerHTML = "";
+
+  purchases.forEach((purchase) => {
+    (purchase.items ?? []).forEach((item) => {
+      const existingItem = aggregatedItems.get(item.productId);
+
+      if (existingItem) {
+        existingItem.qty += Number(item.qty || 0);
+        return;
+      }
+
+      aggregatedItems.set(item.productId, {
+        productId: item.productId,
+        qty: Number(item.qty || 0),
+      });
+    });
+  });
+
+  [...aggregatedItems.values()].forEach((item) => {
+    addLineItemRow("shipment", {
+      productId: item.productId,
+      qty: item.qty,
+      lockedProduct: true,
+    });
+  });
+
+  setShipmentSourceSelectionMode(purchases.map((purchase) => purchase.id));
+  updateAllSummaries();
+}
+
 function resetFormForType(formType) {
   if (formType === "product") {
     resetProductForm();
@@ -2880,6 +3020,22 @@ function openOrderFromSelectedProducts() {
   openModal("order-modal");
 }
 
+function openShipmentFromSelectedPurchases() {
+  const selectedPurchases = getSelectedPurchasesForShipment();
+
+  if (!selectedPurchases.length) {
+    showFlash("Sélectionne au moins un achat pour préparer un envoi.", "error");
+    return;
+  }
+
+  closeQuickCreateMenu();
+  setModalFormError("shipment");
+  resetDynamicForm(refs.shipmentForm, "shipment");
+  prefillShipmentRowsFromPurchases(selectedPurchases);
+  navigateToPath("/shipments");
+  openModal("shipment-modal");
+}
+
 function openCreateFlow(button) {
   const modalId = button.dataset.openModal;
   const targetPath = button.dataset.modalPath;
@@ -2896,6 +3052,12 @@ function openCreateFlow(button) {
   if (formType === "order" && getSelectedProductsForPurchase().length) {
     navigateToPath("/products");
     openOrderFromSelectedProducts();
+    return;
+  }
+
+  if (formType === "shipment") {
+    navigateToPath("/purchases");
+    openShipmentFromSelectedPurchases();
     return;
   }
 
@@ -2938,6 +3100,7 @@ function fillDynamicForm(form, type, record) {
 
   if (type === "shipment") {
     setShipmentFormMode(record);
+    setShipmentSourceSelectionMode(record.sourcePurchaseIds || []);
     form.elements.shipmentId.value = record.id;
     form.elements.shippedAt.value = record.shippedAt.slice(0, 10);
     form.elements.status.value = record.status || "envoye";
@@ -2970,6 +3133,7 @@ function fillDynamicForm(form, type, record) {
     addLineItemRow(type, {
       productId: item.productId,
       qty: item.qty,
+      lockedProduct: type === "shipment" && activeShipmentSourcePurchaseIds.length > 0,
       unitPurchasePriceEur: item.unitPurchasePriceEur,
       unitSalePriceMad: item.unitSalePriceMad,
     });
@@ -3117,6 +3281,10 @@ async function handleSettingsSubmit(event) {
 }
 
 function clearProtectedState() {
+  selectedProductIdsForPurchase.clear();
+  selectedPurchaseIdsForShipment.clear();
+  expandedPurchaseIds.clear();
+  activeShipmentSourcePurchaseIds = [];
   state.settings = {};
   state.products = [];
   state.purchases = [];
@@ -3387,6 +3555,7 @@ async function handleShipmentSubmit(event) {
 
     const payload = {
       responsibleName: "MALAK",
+      sourcePurchaseIds: activeShipmentSourcePurchaseIds,
       status: form.elements.status.value,
       shippedAt: form.elements.shippedAt.value,
       packageWeightKg: Number(form.elements.packageWeightKg.value),
@@ -3411,8 +3580,13 @@ async function handleShipmentSubmit(event) {
       },
     );
     Object.assign(state, result.appState);
+
+    if (!isEditing) {
+      selectedPurchaseIdsForShipment.clear();
+    }
+
     closeModal("shipment-modal");
-    await refreshTableData(["shipments", "products"]);
+    await refreshTableData(["shipments", "products", "purchases"]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("shipment", error.message);
@@ -3609,7 +3783,7 @@ async function handleTableRecordDelete(tableKey, recordId, label) {
       {
         products: ["products", "purchases"],
         purchases: ["purchases", "products"],
-        shipments: ["shipments", "products"],
+        shipments: ["shipments", "products", "purchases"],
         orders: ["orders", "products"],
       }[tableKey] || [tableKey];
 
@@ -3641,7 +3815,7 @@ async function handleShipmentSummaryUpdate(shipmentId, payload) {
       body: payload,
     });
     Object.assign(state, result.appState);
-    await refreshTableData(["shipments"]);
+    await refreshTableData(["shipments", "products", "purchases"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -3811,6 +3985,13 @@ function handleDocumentClick(event) {
 
   if (productsCreateOrderButton) {
     openOrderFromSelectedProducts();
+    return;
+  }
+
+  const purchasesCreateShipmentButton = event.target.closest("#purchases-create-shipment-button");
+
+  if (purchasesCreateShipmentButton) {
+    openShipmentFromSelectedPurchases();
     return;
   }
 
@@ -4082,6 +4263,19 @@ function handleDocumentChange(event) {
     }
 
     updateProductsCreatePurchaseButton();
+    return;
+  }
+
+  const purchaseShipmentSelect = event.target.closest("[data-purchase-shipment-select]");
+
+  if (purchaseShipmentSelect) {
+    if (purchaseShipmentSelect.checked) {
+      selectedPurchaseIdsForShipment.add(purchaseShipmentSelect.dataset.purchaseShipmentSelect);
+    } else {
+      selectedPurchaseIdsForShipment.delete(purchaseShipmentSelect.dataset.purchaseShipmentSelect);
+    }
+
+    updatePurchasesCreateShipmentButton();
     return;
   }
 
