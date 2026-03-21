@@ -4104,9 +4104,8 @@ body.mobile-sidebar-open .sidebar-backdrop {
 
 .available-stock-card {
   display: grid;
-  grid-template-rows: 124px minmax(0, 1fr);
-  min-height: 320px;
-  aspect-ratio: 1 / 1;
+  grid-template-rows: 124px auto;
+  min-height: 0;
   padding: 16px;
   border: 1px solid rgba(0, 87, 184, 0.12);
   border-radius: 24px;
@@ -4135,6 +4134,7 @@ body.mobile-sidebar-open .sidebar-backdrop {
 
 .available-stock-copy {
   display: grid;
+  grid-template-rows: auto auto 1fr;
   align-content: start;
   gap: 10px;
   padding-top: 14px;
