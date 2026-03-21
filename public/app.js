@@ -1906,7 +1906,6 @@ function renderAvailableProducts() {
                 })}
               </div>
               <div class="available-stock-copy">
-                <p class="eyebrow">Disponible Maroc</p>
                 <h4>${escapeHtml(product.name)}</h4>
                 <div class="available-stock-hero">
                   <strong>${escapeHtml(formatNumber(product.metrics?.moroccoStock ?? 0, 0))}</strong>
