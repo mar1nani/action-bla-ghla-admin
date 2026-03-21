@@ -2005,9 +2005,9 @@ function renderOrders() {
                     >
                       ${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}
                     </button>
-                    <small class="table-muted">${escapeHtml(
+                    <small class="table-muted table-muted-wrap">${escapeHtml(
                       order.paymentStatus === "payee"
-                        ? "Réglée intégralement"
+                        ? "Soldée"
                         : order.advancePaidMad > 0
                         ? `Avance ${formatCurrency(order.advancePaidMad, "MAD")}`
                         : "Aucune avance",

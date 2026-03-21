@@ -2396,6 +2396,13 @@ body.sidebar-collapsed .sidebar-footer::before {
   font-size: 0.75rem;
 }
 
+.table-muted-wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: initial;
+  line-height: 1.3;
+}
+
 .table-lines-inline {
   max-width: 240px;
   overflow: hidden;
