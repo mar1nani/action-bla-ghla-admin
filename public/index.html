@@ -975,6 +975,7 @@
                     <span>Paiement</span>
                     <select name="paymentStatus">
                       <option value="non_payee">Non payée</option>
+                      <option value="avance">Avance reçue</option>
                       <option value="payee">Payée</option>
                     </select>
                   </label>
@@ -1009,10 +1010,16 @@
                     <input name="customerAddress" type="text" required />
                   </label>
                 </div>
-                <label class="field field-compact-sm">
-                  <span>Prix livraison client MAD</span>
-                  <input name="deliveryPriceMad" type="number" min="0" step="0.01" value="0" />
-                </label>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Prix livraison client MAD</span>
+                    <input name="deliveryPriceMad" type="number" min="0" step="0.01" value="0" />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Avance payée MAD</span>
+                    <input name="advancePaidMad" type="number" min="0" step="0.01" value="0" />
+                  </label>
+                </div>
                 <div class="line-items-head">
                   <p>Produits commandés</p>
                   <button class="ghost-button" type="button" data-add-row="order">

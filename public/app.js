@@ -703,7 +703,45 @@ function formatShipmentStatusLabel(status) {
 }
 
 function formatPaymentStatusLabel(status) {
-  return status === "payee" ? "Payée" : "Non payée";
+  return (
+    {
+      non_payee: "Non payée",
+      avance: "Avance reçue",
+      payee: "Payée",
+    }[status] || "Non payée"
+  );
+}
+
+function getPaymentStatusChipClass(status) {
+  return (
+    {
+      payee: "status-chip-paid",
+      avance: "status-chip-advance",
+      non_payee: "status-chip-unpaid",
+    }[status] || "status-chip-unpaid"
+  );
+}
+
+function formatInputAmount(value) {
+  const rounded = Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+  if (!Number.isFinite(rounded)) {
+    return "0";
+  }
+
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+function renderPurchaseShipmentChip(purchase) {
+  if (!purchase.linkedShipmentId) {
+    return `<span class="status-chip status-chip-subtle">A envoyer</span>`;
+  }
+
+  return `
+    <span class="status-chip ${escapeHtml(`status-chip-shipment-${purchase.linkedShipmentStatus || "envoye"}`)}">
+      ${escapeHtml(`Colis ${formatShipmentStatusLabel(purchase.linkedShipmentStatus)}`)}
+    </span>
+  `;
 }
 
 function todayInputValue() {
@@ -1671,6 +1709,7 @@ function renderPurchases() {
         <col class="table-col-date" />
         <col class="table-col-photo" />
         <col class="table-col-medium" />
+        <col class="table-col-medium" />
         <col class="table-col-small" />
         <col class="table-col-small" />
         <col class="table-col-small" />
@@ -1682,6 +1721,7 @@ function renderPurchases() {
           <th>Date</th>
           <th>Photo</th>
           <th>Fournisseur</th>
+          <th>Colis</th>
           <th>Qté</th>
           <th>Poids</th>
           <th>Total</th>
@@ -1722,6 +1762,7 @@ function renderPurchases() {
                       )}`
                     : purchase.orderNumber || "Sans référence",
                 )}</td>
+                <td>${renderPurchaseShipmentChip(purchase)}</td>
                 <td>${escapeHtml(formatNumber(purchase.totalQty, 0))}</td>
                 <td>${escapeHtml(formatWeight(purchase.totalWeightKg))}</td>
                 <td>${escapeHtml(formatCurrency(purchase.totalCostEur, "EUR"))}</td>
@@ -1763,7 +1804,7 @@ function renderPurchases() {
                 isExpanded
                   ? `
                     <tr class="purchase-detail-row">
-                      <td colspan="8">${renderPurchaseItemsDetails(purchase)}</td>
+                      <td colspan="9">${renderPurchaseItemsDetails(purchase)}</td>
                     </tr>
                   `
                   : ""
@@ -1895,6 +1936,7 @@ function renderOrders() {
         <col class="table-col-small" />
         <col class="table-col-small" />
         <col class="table-col-small" />
+        <col class="table-col-small" />
         <col class="table-col-actions" />
       </colgroup>
       <thead>
@@ -1905,6 +1947,7 @@ function renderOrders() {
           <th>Statut</th>
           <th>Paiement</th>
           <th>Total</th>
+          <th>Reste</th>
           <th>Bénéfice</th>
           <th>Actions</th>
         </tr>
@@ -1933,22 +1976,39 @@ function renderOrders() {
                   </button>
                 </td>
                 <td>
-                  <button
-                    class="status-chip status-chip-button ${escapeHtml(
+                  <div class="table-status-stack">
+                    <button
+                      class="status-chip status-chip-button ${escapeHtml(
+                        getPaymentStatusChipClass(order.paymentStatus),
+                      )}"
+                      type="button"
+                      data-order-payment-chip="${escapeHtml(order.id)}"
+                      title="Cliquer pour changer le paiement"
+                    >
+                      ${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}
+                    </button>
+                    <small class="table-muted">${escapeHtml(
                       order.paymentStatus === "payee"
-                        ? "status-chip-paid"
-                        : "status-chip-unpaid",
-                    )}"
-                    type="button"
-                    data-order-payment-chip="${escapeHtml(order.id)}"
-                    title="Cliquer pour changer le paiement"
-                  >
-                    ${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}
-                  </button>
+                        ? "Réglée intégralement"
+                        : order.advancePaidMad > 0
+                        ? `Avance ${formatCurrency(order.advancePaidMad, "MAD")}`
+                        : "Aucune avance",
+                    )}</small>
+                  </div>
                 </td>
                 <td>${escapeHtml(
                   formatCurrency(order.customerTotalMad ?? order.totalRevenueMad, "MAD"),
                 )}</td>
+                <td>
+                  <div class="table-status-stack">
+                    <strong>${escapeHtml(
+                      formatCurrency(order.remainingToPayMad ?? order.customerTotalMad ?? 0, "MAD"),
+                    )}</strong>
+                    <small class="table-muted">${escapeHtml(
+                      order.remainingToPayMad > 0 ? "Reste à encaisser" : "Soldée",
+                    )}</small>
+                  </div>
+                </td>
                 <td>
                   <div class="table-status-stack">
                     <strong>${escapeHtml(formatCurrency(order.totalProfitMad, "MAD"))}</strong>
@@ -2408,24 +2468,109 @@ function seedStaticDefaults() {
     refs.orderForm.elements.deliveryPriceMad.value || "0";
 }
 
-function buildProductOptions(selectedId = "") {
-  const baseOption = `<option value="">Choisir un produit</option>`;
+function normalizeSearchValue(value = "") {
+  return value
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  if (!state.products.length) {
-    return `${baseOption}<option value="" disabled>Aucun produit disponible</option>`;
+function getProductSearchResults(query = "", selectedId = "") {
+  const normalizedQuery = normalizeSearchValue(query);
+  const products = [...state.products].sort((left, right) => left.name.localeCompare(right.name, "fr"));
+  const selectedProduct = selectedId ? products.find((product) => product.id === selectedId) : null;
+  const filteredProducts = normalizedQuery
+    ? products.filter((product) => normalizeSearchValue(product.name).includes(normalizedQuery))
+    : selectedProduct
+      ? [selectedProduct]
+      : [];
+
+  if (!selectedProduct) {
+    return filteredProducts.slice(0, 8);
   }
 
-  return `${baseOption}${state.products
-    .map(
-      (product) => `
-        <option value="${escapeHtml(product.id)}" ${
-          product.id === selectedId ? "selected" : ""
-        }>
-          ${escapeHtml(product.name)}
-        </option>
-      `,
-    )
-    .join("")}`;
+  return [
+    selectedProduct,
+    ...filteredProducts.filter((product) => product.id !== selectedProduct.id),
+  ].slice(0, 8);
+}
+
+function renderLineItemProductSearchField(productId, mode = "purchase") {
+  const product = getProductById(productId);
+
+  return `
+    <div class="line-item-product-picker" data-product-picker data-product-picker-mode="${escapeHtml(
+      mode,
+    )}">
+      <input
+        class="line-item-product-search-input"
+        data-product-search-input
+        type="search"
+        inputmode="search"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="Rechercher un produit"
+        value="${escapeHtml(product?.name || "")}"
+      />
+      <input data-field="productId" type="hidden" value="${escapeHtml(productId || "")}" />
+      <div class="line-item-product-results" data-product-search-results hidden></div>
+    </div>
+  `;
+}
+
+function renderLineItemProductSearchResults(query = "", selectedId = "", mode = "purchase") {
+  const normalizedQuery = normalizeSearchValue(query);
+
+  if (!state.products.length) {
+    return `<div class="line-item-product-search-empty">Aucun produit disponible.</div>`;
+  }
+
+  if (!normalizedQuery && !selectedId) {
+    return `<div class="line-item-product-search-empty">Commence a taper le nom du produit.</div>`;
+  }
+
+  const matches = getProductSearchResults(query, selectedId);
+
+  if (!matches.length) {
+    return `<div class="line-item-product-search-empty">Aucun produit ne correspond a ta recherche.</div>`;
+  }
+
+  return matches
+    .map((product) => {
+      const meta =
+        mode === "order"
+          ? `${formatWeight(product.weightKg)} · vente défaut ${formatCurrency(
+              product.defaultSalePriceMad,
+              "MAD",
+            )}`
+          : `${formatWeight(product.weightKg)} · achat défaut ${formatCurrency(
+              product.defaultPurchasePriceEur,
+              "EUR",
+            )}`;
+
+      return `
+        <button
+          class="line-item-product-option ${product.id === selectedId ? "is-selected" : ""}"
+          type="button"
+          data-product-search-option="${escapeHtml(product.id)}"
+        >
+          ${renderProductThumb({
+            imageUrl: product.imageUrl,
+            label: product.name,
+            className: "line-item-product-search-thumb",
+            fallback: product.name.slice(0, 2).toUpperCase(),
+          })}
+          <span class="line-item-product-option-copy">
+            <strong>${escapeHtml(product.name)}</strong>
+            <small>${escapeHtml(meta)}</small>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
 }
 
 function renderLineItemProductPreview(productId, mode = "purchase") {
@@ -2476,7 +2621,8 @@ function createRowTemplate(type, values = {}) {
         <div class="line-item-row is-editable-product" data-type="purchase">
           <div class="field grow">
             <span>Produit</span>
-            <select data-field="productId">${buildProductOptions(values.productId)}</select>
+            ${renderLineItemProductPreview(values.productId, "purchase")}
+            ${renderLineItemProductSearchField(values.productId, "purchase")}
           </div>
           <div class="field compact">
             <span>Quantité</span>
@@ -2566,7 +2712,8 @@ function createRowTemplate(type, values = {}) {
       <div class="line-item-row" data-type="shipment">
         <div class="field grow">
           <span>Produit</span>
-          <select data-field="productId">${buildProductOptions(values.productId)}</select>
+          ${renderLineItemProductPreview(values.productId, "shipment")}
+          ${renderLineItemProductSearchField(values.productId, "shipment")}
         </div>
         <div class="field compact">
           <span>Quantité</span>
@@ -2613,7 +2760,8 @@ function createRowTemplate(type, values = {}) {
     <div class="line-item-row" data-type="order">
       <div class="field grow">
         <span>Produit</span>
-        <select data-field="productId">${buildProductOptions(values.productId)}</select>
+        ${renderLineItemProductPreview(values.productId, "order")}
+        ${renderLineItemProductSearchField(values.productId, "order")}
       </div>
       <div class="field compact">
         <span>Quantité</span>
@@ -2637,13 +2785,13 @@ function createRowTemplate(type, values = {}) {
   `;
 }
 
-function addLineItemRow(type, values = {}) {
+function addLineItemRow(type, values = {}, options = {}) {
   const container = formTypes[type].container;
   const rowValues =
     type === "purchase" && activePurchaseItemsEditable
       ? { editableProduct: true, ...values }
       : values;
-  container.insertAdjacentHTML("beforeend", createRowTemplate(type, rowValues));
+  container.insertAdjacentHTML(options.prepend ? "afterbegin" : "beforeend", createRowTemplate(type, rowValues));
   updateRowsForType(type);
 }
 
@@ -2667,22 +2815,83 @@ function updateRowsForType(type) {
   [...container.querySelectorAll(".line-item-row")].forEach((row) => {
     const productField = row.querySelector('[data-field="productId"]');
     const selectedId = productField?.value || "";
-
-    if (productField?.tagName === "SELECT") {
-      productField.innerHTML = buildProductOptions(selectedId);
-    }
+    const productPicker = row.querySelector("[data-product-picker]");
+    const productSearchInput = row.querySelector("[data-product-search-input]");
+    const productSearchResults = row.querySelector("[data-product-search-results]");
 
     const preview = row.querySelector("[data-row-product-preview]");
 
     if (preview) {
       preview.outerHTML = renderLineItemProductPreview(
         selectedId,
-        row.dataset.type === "order" ? "order" : "purchase",
+        row.dataset.type === "order"
+          ? "order"
+          : row.dataset.type === "shipment"
+            ? "shipment"
+            : "purchase",
       );
+    }
+
+    if (productPicker && productSearchInput) {
+      const product = getProductById(selectedId);
+      productSearchInput.value = product?.name || "";
+
+      if (productSearchResults && !productSearchResults.hidden) {
+        productSearchResults.innerHTML = renderLineItemProductSearchResults(
+          productSearchInput.value,
+          selectedId,
+          productPicker.dataset.productPickerMode || type,
+        );
+      }
     }
 
     updateRowHint(row, type);
   });
+}
+
+function closeProductSearchResults(scope = document) {
+  scope.querySelectorAll("[data-product-search-results]").forEach((results) => {
+    results.hidden = true;
+  });
+
+  scope.querySelectorAll("[data-product-picker]").forEach((picker) => {
+    picker.classList.remove("is-open");
+  });
+}
+
+function openProductSearchResults(row, query = null) {
+  const picker = row.querySelector("[data-product-picker]");
+  const input = row.querySelector("[data-product-search-input]");
+  const productField = row.querySelector('[data-field="productId"]');
+  const results = row.querySelector("[data-product-search-results]");
+
+  if (!picker || !input || !productField || !results) {
+    return;
+  }
+
+  results.innerHTML = renderLineItemProductSearchResults(
+    query ?? input.value,
+    productField.value || "",
+    picker.dataset.productPickerMode || row.dataset.type || "purchase",
+  );
+  results.hidden = false;
+  picker.classList.add("is-open");
+}
+
+function applyProductSearchSelection(row, productId) {
+  const productField = row.querySelector('[data-field="productId"]');
+  const input = row.querySelector("[data-product-search-input]");
+  const product = getProductById(productId);
+
+  if (!productField || !input || !product) {
+    return;
+  }
+
+  productField.value = product.id;
+  input.value = product.name;
+  closeProductSearchResults(row);
+  updateRowsForType(row.dataset.type);
+  updateAllSummaries();
 }
 
 function getRowValues(row) {
@@ -2834,6 +3043,62 @@ function updateShipmentSummary() {
   `;
 }
 
+function calculateOrderFormCustomerTotalMad() {
+  const rows = collectRows("order");
+  const itemsRevenueMad = rows.reduce((total, row) => {
+    const values = getRowValues(row);
+    const product = getProductById(values.productId);
+    const qty = Number(values.qty || 0);
+    const salePrice = Number(values.unitSalePriceMad || product?.defaultSalePriceMad || 0);
+
+    return total + qty * salePrice;
+  }, 0);
+
+  const deliveryPriceMad = Number(refs.orderForm.elements.deliveryPriceMad.value || 0);
+  return itemsRevenueMad + deliveryPriceMad;
+}
+
+function syncOrderPaymentFields(trigger = "") {
+  const paymentField = refs.orderForm.elements.paymentStatus;
+  const advanceField = refs.orderForm.elements.advancePaidMad;
+  const customerTotalMad = calculateOrderFormCustomerTotalMad();
+  let advancePaidMad = Number(advanceField.value || 0);
+
+  if (!Number.isFinite(advancePaidMad) || advancePaidMad < 0) {
+    advancePaidMad = 0;
+  }
+
+  if (trigger === "paymentStatus") {
+    if (paymentField.value === "non_payee") {
+      advanceField.value = "0";
+      return;
+    }
+
+    if (paymentField.value === "payee") {
+      advanceField.value = formatInputAmount(customerTotalMad);
+    }
+
+    return;
+  }
+
+  advancePaidMad = Math.min(advancePaidMad, customerTotalMad);
+
+  if (advancePaidMad <= 0) {
+    paymentField.value = "non_payee";
+    advanceField.value = "0";
+    return;
+  }
+
+  if (customerTotalMad > 0 && advancePaidMad >= customerTotalMad) {
+    paymentField.value = "payee";
+    advanceField.value = formatInputAmount(customerTotalMad);
+    return;
+  }
+
+  paymentField.value = "avance";
+  advanceField.value = formatInputAmount(advancePaidMad);
+}
+
 function updateOrderSummary() {
   const rows = collectRows("order");
   let totalQty = 0;
@@ -2853,6 +3118,28 @@ function updateOrderSummary() {
 
   const deliveryPriceMad = Number(refs.orderForm.elements.deliveryPriceMad.value || 0);
   const customerTotalMad = itemsRevenueMad + deliveryPriceMad;
+  const selectedPaymentStatus = refs.orderForm.elements.paymentStatus.value || "non_payee";
+  let advancePaidMad = Number(refs.orderForm.elements.advancePaidMad.value || 0);
+
+  if (!Number.isFinite(advancePaidMad) || advancePaidMad < 0) {
+    advancePaidMad = 0;
+  }
+
+  if (selectedPaymentStatus === "payee") {
+    advancePaidMad = customerTotalMad;
+    refs.orderForm.elements.advancePaidMad.value = formatInputAmount(advancePaidMad);
+  } else if (selectedPaymentStatus === "non_payee") {
+    advancePaidMad = 0;
+    refs.orderForm.elements.advancePaidMad.value = "0";
+  } else {
+    advancePaidMad = Math.min(advancePaidMad, customerTotalMad);
+
+    if (refs.orderForm.elements.advancePaidMad.value !== "") {
+      refs.orderForm.elements.advancePaidMad.value = formatInputAmount(advancePaidMad);
+    }
+  }
+
+  const remainingToPayMad = Math.max(customerTotalMad - advancePaidMad, 0);
   const profitMad = itemsRevenueMad - costMad;
   const marginRate = itemsRevenueMad > 0 ? (profitMad / itemsRevenueMad) * 100 : 0;
 
@@ -2868,6 +3155,12 @@ function updateOrderSummary() {
     )}</strong></div>
     <div class="summary-line"><span>Total client</span><strong>${escapeHtml(
       formatCurrency(customerTotalMad, "MAD"),
+    )}</strong></div>
+    <div class="summary-line"><span>Avance reçue</span><strong>${escapeHtml(
+      formatCurrency(advancePaidMad, "MAD"),
+    )}</strong></div>
+    <div class="summary-line"><span>Reste à payer</span><strong>${escapeHtml(
+      formatCurrency(remainingToPayMad, "MAD"),
     )}</strong></div>
     <div class="summary-line"><span>Coût estimé</span><strong>${escapeHtml(
       formatCurrency(costMad, "MAD"),
@@ -2915,6 +3208,7 @@ function resetDynamicForm(form, type) {
     form.elements.paymentStatus.value = "non_payee";
     form.elements.carrierName.value = "Achraf";
     form.elements.deliveryPriceMad.value = "0";
+    form.elements.advancePaidMad.value = "0";
     if (refs.orderAddRowButton) {
       refs.orderAddRowButton.hidden = false;
     }
@@ -3167,6 +3461,7 @@ function fillDynamicForm(form, type, record) {
     form.elements.paymentStatus.value = record.paymentStatus || "non_payee";
     form.elements.carrierName.value = record.carrierName || "Achraf";
     form.elements.deliveryPriceMad.value = record.deliveryPriceMad ?? 0;
+    form.elements.advancePaidMad.value = record.advancePaidMad ?? 0;
     form.elements.customerName.value = record.customer.name || "";
     form.elements.customerPhone.value = record.customer.phone || "";
     form.elements.customerCity.value = record.customer.city || "";
@@ -3663,6 +3958,7 @@ async function handleOrderSubmit(event) {
       paymentStatus: form.elements.paymentStatus.value,
       carrierName: form.elements.carrierName.value,
       deliveryPriceMad: Number(form.elements.deliveryPriceMad.value || 0),
+      advancePaidMad: Number(form.elements.advancePaidMad.value || 0),
       customerName: form.elements.customerName.value,
       customerPhone: form.elements.customerPhone.value,
       customerCity: form.elements.customerCity.value,
@@ -3723,7 +4019,7 @@ function renderOrderDetails(order) {
               : "status-chip-confirmee"
         }">${escapeHtml(formatOrderStatusLabel(order.status))}</span></p>
         <p><span class="status-chip ${
-          order.paymentStatus === "payee" ? "status-chip-paid" : "status-chip-unpaid"
+          getPaymentStatusChipClass(order.paymentStatus)
         }">${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}</span></p>
         <p>Transporteur ${escapeHtml(order.carrierName || "Sans transporteur")}</p>
         <p>Date ${escapeHtml(formatDate(order.orderedAt))}</p>
@@ -3733,6 +4029,8 @@ function renderOrderDetails(order) {
         <h4>${escapeHtml(formatCurrency(order.customerTotalMad ?? order.totalRevenueMad, "MAD"))}</h4>
         <p>Ventes produits ${escapeHtml(formatCurrency(order.totalRevenueMad, "MAD"))}</p>
         <p>Livraison ${escapeHtml(formatCurrency(order.deliveryPriceMad || 0, "MAD"))}</p>
+        <p>Avance ${escapeHtml(formatCurrency(order.advancePaidMad || 0, "MAD"))}</p>
+        <p>Reste ${escapeHtml(formatCurrency(order.remainingToPayMad || 0, "MAD"))}</p>
         <p>Bénéfice ${escapeHtml(formatCurrency(order.totalProfitMad, "MAD"))}</p>
         <p>Marge ${escapeHtml(`${formatNumber(order.marginRate, 2)}%`)}</p>
       </article>
@@ -4242,10 +4540,37 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const productSearchOption = event.target.closest("[data-product-search-option]");
+
+  if (productSearchOption) {
+    const row = productSearchOption.closest(".line-item-row");
+
+    if (row) {
+      applyProductSearchSelection(row, productSearchOption.dataset.productSearchOption);
+    }
+
+    return;
+  }
+
+  const productSearchInput = event.target.closest("[data-product-search-input]");
+
+  if (productSearchInput) {
+    const row = productSearchInput.closest(".line-item-row");
+
+    if (row) {
+      closeProductSearchResults();
+      openProductSearchResults(row, productSearchInput.value);
+    }
+
+    return;
+  }
+
+  closeProductSearchResults();
+
   const addButton = event.target.closest("[data-add-row]");
 
   if (addButton) {
-    addLineItemRow(addButton.dataset.addRow);
+    addLineItemRow(addButton.dataset.addRow, {}, { prepend: true });
     return;
   }
 
@@ -4271,6 +4596,11 @@ function handleDocumentKeydown(event) {
     return;
   }
 
+  if (document.querySelector("[data-product-picker].is-open")) {
+    closeProductSearchResults();
+    return;
+  }
+
   if (refs.profileMenu && !refs.profileMenu.hidden) {
     closeProfileMenu();
     return;
@@ -4293,6 +4623,23 @@ function handleFormInput(event) {
     syncPendingProductImageLabel();
   }
 
+  if (event.target.form === refs.orderForm) {
+    if (event.target.name === "advancePaidMad") {
+      syncOrderPaymentFields("advancePaidMad");
+    } else if (event.target.name === "paymentStatus") {
+      syncOrderPaymentFields("paymentStatus");
+    }
+  }
+
+  if (event.target.matches("[data-product-search-input]")) {
+    const row = event.target.closest(".line-item-row");
+
+    if (row) {
+      closeProductSearchResults();
+      openProductSearchResults(row, event.target.value);
+    }
+  }
+
   const row = event.target.closest(".line-item-row");
 
   if (row) {
@@ -4303,6 +4650,12 @@ function handleFormInput(event) {
 }
 
 function handleDocumentChange(event) {
+  if (event.target.form === refs.orderForm && event.target.name === "paymentStatus") {
+    syncOrderPaymentFields("paymentStatus");
+    updateAllSummaries();
+    return;
+  }
+
   const productPurchaseSelect = event.target.closest("[data-product-purchase-select]");
 
   if (productPurchaseSelect) {
@@ -4331,7 +4684,7 @@ function handleDocumentChange(event) {
 
   const productSelect = event.target.closest('.line-item-row [data-field="productId"]');
 
-  if (productSelect) {
+  if (productSelect && productSelect.type !== "hidden") {
     const row = productSelect.closest(".line-item-row");
 
     if (row) {

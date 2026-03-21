@@ -27,7 +27,7 @@ const SESSION_COOKIE_NAME = "abg_session";
 const sessions = new Map();
 
 const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
-const paymentStatuses = new Set(["non_payee", "payee"]);
+const paymentStatuses = new Set(["non_payee", "avance", "payee"]);
 const shipmentStatuses = new Set([
   "achete",
   "en_preparation",
@@ -326,6 +326,8 @@ function filterOrders(items, query) {
         order.paymentStatus,
         order.carrierName,
         order.deliveryPriceMad,
+        order.advancePaidMad,
+        order.remainingToPayMad,
         order.customerTotalMad,
         order.totalProfitMad,
         (order.items ?? []).map((item) => `${item.productName} ${item.qty}`),
@@ -805,9 +807,78 @@ function buildShipmentRecord(payload, store, recordId = createId("shp")) {
   };
 }
 
+function buildOrderPaymentState({
+  paymentStatus,
+  advancePaidMad,
+  customerTotalMad,
+  fallbackAdvancePaidMad = 0,
+  fallbackPaidAt = null,
+}) {
+  const requestedStatus = optionalString(paymentStatus || "non_payee");
+
+  if (!paymentStatuses.has(requestedStatus)) {
+    throw createValidationError("Le statut de paiement est invalide.");
+  }
+
+  if (customerTotalMad <= 0) {
+    return {
+      paymentStatus: requestedStatus === "payee" ? "payee" : "non_payee",
+      advancePaidMad: 0,
+      remainingToPayMad: 0,
+      paidAt: requestedStatus === "payee" ? fallbackPaidAt || new Date().toISOString() : null,
+    };
+  }
+
+  let normalizedAdvancePaidMad;
+
+  if (requestedStatus === "payee") {
+    normalizedAdvancePaidMad = customerTotalMad;
+  } else if (requestedStatus === "non_payee") {
+    normalizedAdvancePaidMad = 0;
+  } else if (advancePaidMad === undefined || advancePaidMad === null || advancePaidMad === "") {
+    normalizedAdvancePaidMad = requireNumber(
+      fallbackAdvancePaidMad,
+      "Avance payée MAD",
+      { min: 0 },
+    );
+  } else {
+    normalizedAdvancePaidMad = requireNumber(advancePaidMad, "Avance payée MAD", { min: 0 });
+  }
+
+  if (normalizedAdvancePaidMad > customerTotalMad) {
+    throw createValidationError("L'avance payée ne peut pas dépasser le total client.");
+  }
+
+  if (requestedStatus === "avance") {
+    if (normalizedAdvancePaidMad <= 0) {
+      throw createValidationError("Renseigne une avance payée supérieure à 0.");
+    }
+
+    if (normalizedAdvancePaidMad >= customerTotalMad) {
+      throw createValidationError("Une avance doit rester inférieure au total client.");
+    }
+  }
+
+  const remainingToPayMad = Number((customerTotalMad - normalizedAdvancePaidMad).toFixed(2));
+  const normalizedStatus =
+    normalizedAdvancePaidMad <= 0
+      ? "non_payee"
+      : remainingToPayMad <= 0
+        ? "payee"
+        : "avance";
+
+  return {
+    paymentStatus: normalizedStatus,
+    advancePaidMad: Number(normalizedAdvancePaidMad.toFixed(2)),
+    remainingToPayMad,
+    paidAt: normalizedStatus === "payee" ? fallbackPaidAt || new Date().toISOString() : null,
+  };
+}
+
 function buildOrderRecord(payload, store, recordId = createId("ord")) {
   const metricsById = getProductMetricsMap(store);
   const eurToMad = store.settings.eurToMad;
+  const existingOrder = store.orders.find((entry) => entry.id === recordId);
   const items = readItemArray(payload.items).map((item) => {
     const product = findProduct(item.productId, store);
     const qty = requireInteger(item.qty, "Quantité commandée", { min: 1 });
@@ -845,10 +916,6 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
 
   const paymentStatus = optionalString(payload.paymentStatus || "non_payee");
 
-  if (!paymentStatuses.has(paymentStatus)) {
-    throw createValidationError("Le statut de paiement est invalide.");
-  }
-
   const deliveryPriceMad = requireNumber(payload.deliveryPriceMad ?? 0, "Prix de livraison MAD", {
     min: 0,
   });
@@ -860,15 +927,24 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
   const totalRevenueMad = itemsRevenueMad;
   const totalCostMad = Number(items.reduce((total, item) => total + item.lineCostMad, 0).toFixed(2));
   const totalProfitMad = Number((itemsRevenueMad - totalCostMad).toFixed(2));
+  const paymentState = buildOrderPaymentState({
+    paymentStatus,
+    advancePaidMad: payload.advancePaidMad,
+    customerTotalMad,
+    fallbackAdvancePaidMad: existingOrder?.advancePaidMad ?? 0,
+    fallbackPaidAt: existingOrder?.paidAt || null,
+  });
 
   return {
     id: recordId,
     orderedAt: toRecordDate(payload.orderedAt),
     status,
-    paymentStatus,
-    paidAt: paymentStatus === "payee" ? new Date().toISOString() : null,
+    paymentStatus: paymentState.paymentStatus,
+    paidAt: paymentState.paidAt,
     carrierName,
     deliveryPriceMad,
+    advancePaidMad: paymentState.advancePaidMad,
+    remainingToPayMad: paymentState.remainingToPayMad,
     customer: {
       name: requireString(payload.customerName, "Nom client"),
       phone: normalizeMoroccanPhone(payload.customerPhone),
@@ -997,7 +1073,17 @@ function writeInvoicePdf(response, order, settings, options = {}) {
     .fontSize(8.5)
     .fillColor("#5a6473")
     .text(`Statut: ${order.status}`, 28, cursorY)
-    .text(`Paiement: ${order.paymentStatus === "payee" ? "Payée" : "Non payée"}`, 214, cursorY)
+    .text(
+      `Paiement: ${
+        order.paymentStatus === "payee"
+          ? "Payée"
+          : order.paymentStatus === "avance"
+            ? "Avance reçue"
+            : "Non payée"
+      }`,
+      214,
+      cursorY,
+    )
     .text(`Transporteur: ${order.carrierName}`, 392, cursorY, { width: 160, align: "right" });
 
   if (order.notes) {
@@ -1704,9 +1790,19 @@ app.patch(
         throw createValidationError("Le statut de paiement est invalide.");
       }
 
+      const paymentState = buildOrderPaymentState({
+        paymentStatus: nextPaymentStatus,
+        advancePaidMad: request.body.advancePaidMad,
+        customerTotalMad: order.customerTotalMad ?? 0,
+        fallbackAdvancePaidMad: order.advancePaidMad ?? 0,
+        fallbackPaidAt: order.paidAt || null,
+      });
+
       order.status = nextStatus;
-      order.paymentStatus = nextPaymentStatus;
-      order.paidAt = nextPaymentStatus === "payee" ? new Date().toISOString() : null;
+      order.paymentStatus = paymentState.paymentStatus;
+      order.advancePaidMad = paymentState.advancePaidMad;
+      order.remainingToPayMad = paymentState.remainingToPayMad;
+      order.paidAt = paymentState.paidAt;
       return store;
     });
 
@@ -1728,8 +1824,18 @@ app.patch(
         throw createValidationError("Le statut de paiement est invalide.");
       }
 
-      order.paymentStatus = paymentStatus;
-      order.paidAt = paymentStatus === "payee" ? new Date().toISOString() : null;
+      const paymentState = buildOrderPaymentState({
+        paymentStatus,
+        advancePaidMad: request.body.advancePaidMad,
+        customerTotalMad: order.customerTotalMad ?? 0,
+        fallbackAdvancePaidMad: order.advancePaidMad ?? 0,
+        fallbackPaidAt: order.paidAt || null,
+      });
+
+      order.paymentStatus = paymentState.paymentStatus;
+      order.advancePaidMad = paymentState.advancePaidMad;
+      order.remainingToPayMad = paymentState.remainingToPayMad;
+      order.paidAt = paymentState.paidAt;
       return store;
     });
 
