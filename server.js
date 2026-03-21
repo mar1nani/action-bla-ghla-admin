@@ -364,6 +364,7 @@ function buildWishlistItems(state, store) {
       return {
         id: entry.id,
         productId: product.id,
+        desiredQty: Math.max(1, Number(entry.desiredQty || 1)),
         createdAt: entry.createdAt || new Date().toISOString(),
         createdByLogin: entry.createdByLogin || "",
         createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
@@ -1603,19 +1604,24 @@ app.delete(
 app.post(
   "/api/wishlist",
   asyncRoute(async (request, response) => {
+    let wishlistAction = "added";
+
     const nextStore = await updateStore((store) => {
       const user = getAuthenticatedUser(request, store);
       const product = findProduct(request.body.productId, store);
       const existingEntry = (store.wishlist ?? []).find((entry) => entry.productId === product.id);
 
       if (existingEntry) {
-        throw createValidationError("Ce produit est déjà dans la wishlist.");
+        store.wishlist = (store.wishlist ?? []).filter((entry) => entry.productId !== product.id);
+        wishlistAction = "removed";
+        return store;
       }
 
       store.wishlist = store.wishlist ?? [];
       store.wishlist.push({
         id: createId("wish"),
         productId: product.id,
+        desiredQty: requireInteger(request.body.desiredQty ?? 1, "Quantité souhaitée", { min: 1 }),
         createdAt: new Date().toISOString(),
         createdByLogin: user?.login || "",
         createdByName: user?.displayName || user?.login || "Équipe",
@@ -1624,8 +1630,39 @@ app.post(
       return store;
     });
 
-    response.status(201).json({
-      message: "Produit ajouté à la wishlist.",
+    response.status(wishlistAction === "added" ? 201 : 200).json({
+      message:
+        wishlistAction === "added"
+          ? "Produit ajouté à la wishlist."
+          : "Produit retiré de la wishlist.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.patch(
+  "/api/wishlist/:wishlistId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const wishlistEntry = (store.wishlist ?? []).find(
+        (entry) => entry.id === request.params.wishlistId,
+      );
+
+      if (!wishlistEntry) {
+        throw createNotFoundError("Entrée wishlist introuvable.");
+      }
+
+      wishlistEntry.desiredQty = requireInteger(
+        request.body.desiredQty,
+        "Quantité souhaitée",
+        { min: 1 },
+      );
+
+      return store;
+    });
+
+    response.json({
+      message: "Quantité souhaitée mise à jour.",
       appState: buildPublicState(nextStore, request),
     });
   }),

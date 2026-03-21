@@ -1071,12 +1071,31 @@ function updatePurchasesCreateShipmentButton() {
       : `Créer un envoi (${formatNumber(selectedPurchases.length, 0)})`;
 }
 
+function ensureTableState(tableKey) {
+  if (!state.tables[tableKey]) {
+    state.tables[tableKey] = {
+      items: [],
+      pagination: null,
+    };
+  }
+
+  if (!Array.isArray(state.tables[tableKey].items)) {
+    state.tables[tableKey].items = [];
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(state.tables[tableKey], "pagination")) {
+    state.tables[tableKey].pagination = null;
+  }
+
+  return state.tables[tableKey];
+}
+
 function getTableRecord(tableKey, recordId) {
-  return (state.tables[tableKey]?.items ?? []).find((item) => item.id === recordId) || null;
+  return ensureTableState(tableKey).items.find((item) => item.id === recordId) || null;
 }
 
 function getTablePage(tableKey) {
-  return state.tables[tableKey]?.pagination?.page || 1;
+  return ensureTableState(tableKey).pagination?.page || 1;
 }
 
 function getDefaultTableFilters(tableKey) {
@@ -1356,7 +1375,10 @@ async function loadAppState() {
 
 async function loadTablePage(tableKey, page = 1, options = {}) {
   const payload = await apiRequest(`${TABLE_ENDPOINTS[tableKey]}?${buildTableQuery(tableKey, page)}`);
-  state.tables[tableKey] = payload;
+  state.tables[tableKey] = {
+    items: Array.isArray(payload?.items) ? payload.items : [],
+    pagination: payload?.pagination ?? null,
+  };
 
   if (options.render !== false) {
     renderAll();
@@ -1378,9 +1400,9 @@ async function ensurePageTableData(options = {}) {
     return;
   }
 
-  const currentPage = state.tables[tableKey]?.pagination?.page || 1;
+  const currentPage = ensureTableState(tableKey).pagination?.page || 1;
 
-  if (!options.force && state.tables[tableKey]?.pagination) {
+  if (!options.force && ensureTableState(tableKey).pagination) {
     if (options.render) {
       renderAll();
     }
@@ -1558,7 +1580,7 @@ function renderTableLines(items, formatter) {
 }
 
 function renderPagination(tableKey, container) {
-  const pagination = state.tables[tableKey]?.pagination;
+  const pagination = ensureTableState(tableKey).pagination;
 
   if (!pagination || pagination.totalPages <= 1) {
     container.innerHTML = "";
@@ -1593,7 +1615,7 @@ function renderPagination(tableKey, container) {
 }
 
 function renderProductsTable() {
-  const items = state.tables.products.items ?? [];
+  const items = ensureTableState("products").items;
   const selectedProductIds = new Set(getSelectedProductsForPurchase().map((product) => product.id));
   const wishlistProductIds = new Set(state.wishlistProductIds ?? []);
 
@@ -1707,16 +1729,15 @@ function renderProductsTable() {
                         isWishlisted ? "is-active" : ""
                       }"
                       type="button"
-                      data-product-wishlist-add="${escapeHtml(product.id)}"
+                      data-product-wishlist-toggle="${escapeHtml(product.id)}"
                       aria-label="${
                         isWishlisted
-                          ? `Produit déjà dans la wishlist`
+                          ? `Retirer ${escapeHtml(product.name)} de la wishlist`
                           : `Ajouter ${escapeHtml(product.name)} à la wishlist`
                       }"
                       title="${
-                        isWishlisted ? "Déjà dans la wishlist" : "Ajouter à la wishlist"
+                        isWishlisted ? "Retirer de la wishlist" : "Ajouter à la wishlist"
                       }"
-                      ${isWishlisted ? "disabled" : ""}
                     >
                       ${renderIcon("heart")}
                     </button>
@@ -1764,7 +1785,7 @@ function renderWishlistTable() {
     return;
   }
 
-  const items = state.tables.wishlist.items ?? [];
+  const items = ensureTableState("wishlist").items;
 
   if (!items.length) {
     refs.wishlistTable.innerHTML = renderEmptyState(
@@ -1775,74 +1796,80 @@ function renderWishlistTable() {
   }
 
   refs.wishlistTable.innerHTML = `
-    <table class="data-table">
-      <colgroup>
-        <col class="table-col-photo" />
-        <col class="table-col-product" />
-        <col class="table-col-small" />
-        <col class="table-col-small" />
-        <col class="table-col-small" />
-        <col class="table-col-medium" />
-        <col class="table-col-actions" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th></th>
-          <th>Produit</th>
-          <th>Stock MA</th>
-          <th>Vente</th>
-          <th>Poids</th>
-          <th>Ajouté par</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items
-          .map(
-            (item) => `
-              <tr>
-                <td>
-                  ${renderProductThumb({
-                    imageUrl: item.imageUrl,
-                    label: item.name,
-                    className: "product-thumb-table",
-                    fallback: item.name.slice(0, 2).toUpperCase(),
-                    button: true,
-                  })}
-                </td>
-                <td>${renderPrimaryTableCell(
-                  item.name,
-                  `FR ${formatNumber(item.metrics?.franceStock ?? 0, 0)} · MA ${formatNumber(
-                    item.metrics?.moroccoStock ?? 0,
-                    0,
-                  )}`,
-                )}</td>
-                <td>${escapeHtml(formatNumber(item.metrics?.moroccoStock ?? 0, 0))}</td>
-                <td>${escapeHtml(formatCurrency(item.defaultSalePriceMad ?? 0, "MAD"))}</td>
-                <td>${escapeHtml(formatWeight(item.weightKg))}</td>
-                <td>${renderPrimaryTableCell(
-                  item.createdByName || "Équipe",
-                  formatDate(item.createdAt),
-                )}</td>
-                <td>
-                  <div class="table-actions">
-                    <button
-                      class="ghost-button table-action-button table-icon-danger"
-                      type="button"
-                      data-wishlist-delete="${escapeHtml(item.id)}"
-                      aria-label="Retirer de la wishlist"
-                      title="Retirer de la wishlist"
-                    >
-                      ${renderIcon("delete")}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `,
-          )
-          .join("")}
-      </tbody>
-    </table>
+    <div class="wishlist-grid">
+      ${items
+        .map(
+          (item) => `
+            <article class="wishlist-card">
+              <div class="wishlist-card-head">
+                ${renderProductThumb({
+                  imageUrl: item.imageUrl,
+                  label: item.name,
+                  className: "wishlist-card-thumb",
+                  fallback: item.name.slice(0, 2).toUpperCase(),
+                  button: true,
+                })}
+                <button
+                  class="ghost-button table-action-button table-icon-favorite is-active wishlist-heart-button"
+                  type="button"
+                  data-product-wishlist-toggle="${escapeHtml(item.productId)}"
+                  aria-label="Retirer ${escapeHtml(item.name)} de la wishlist"
+                  title="Retirer de la wishlist"
+                >
+                  ${renderIcon("heart")}
+                </button>
+              </div>
+              <div class="wishlist-card-copy">
+                <h4>${escapeHtml(item.name)}</h4>
+                <p>
+                  Ajouté par ${escapeHtml(item.createdByName || "Équipe")}
+                  <span>· ${escapeHtml(formatDate(item.createdAt))}</span>
+                </p>
+              </div>
+              <div class="wishlist-card-qty">
+                <span class="wishlist-card-qty-label">Qté souhaitée</span>
+                <div class="wishlist-card-qty-controls">
+                  <input
+                    class="wishlist-qty-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
+                    data-wishlist-qty-input="${escapeHtml(item.id)}"
+                    aria-label="Quantité souhaitée pour ${escapeHtml(item.name)}"
+                  />
+                  <button
+                    class="ghost-button wishlist-qty-save"
+                    type="button"
+                    data-wishlist-qty-save="${escapeHtml(item.id)}"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+              <div class="wishlist-card-stats">
+                <div>
+                  <span>Stock MA</span>
+                  <strong>${escapeHtml(formatNumber(item.metrics?.moroccoStock ?? 0, 0))}</strong>
+                </div>
+                <div>
+                  <span>Vente</span>
+                  <strong>${escapeHtml(formatCurrency(item.defaultSalePriceMad ?? 0, "MAD"))}</strong>
+                </div>
+                <div>
+                  <span>Poids</span>
+                  <strong>${escapeHtml(formatWeight(item.weightKg))}</strong>
+                </div>
+                <div>
+                  <span>Achat</span>
+                  <strong>${escapeHtml(formatCurrency(item.defaultPurchasePriceEur ?? 0, "EUR"))}</strong>
+                </div>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
   `;
 
   renderPagination("wishlist", refs.wishlistPagination);
@@ -1853,7 +1880,7 @@ function renderAvailableProducts() {
     return;
   }
 
-  const items = state.tables.available.items ?? [];
+  const items = ensureTableState("available").items;
 
   if (!items.length) {
     refs.availableGrid.innerHTML = renderEmptyState(
@@ -1925,7 +1952,7 @@ function renderAvailableProducts() {
 }
 
 function renderPurchases() {
-  const items = state.tables.purchases.items ?? [];
+  const items = ensureTableState("purchases").items;
   const selectedPurchaseIds = new Set(getSelectedPurchasesForShipment().map((purchase) => purchase.id));
 
   updatePurchasesCreateShipmentButton();
@@ -2054,7 +2081,7 @@ function renderPurchases() {
 }
 
 function renderShipments() {
-  const items = state.tables.shipments.items ?? [];
+  const items = ensureTableState("shipments").items;
 
   if (!items.length) {
     refs.shipmentsList.innerHTML = renderEmptyState("Aucun envoi enregistré.");
@@ -2152,7 +2179,7 @@ function renderShipments() {
 }
 
 function renderOrders() {
-  const items = state.tables.orders.items ?? [];
+  const items = ensureTableState("orders").items;
 
   if (!items.length) {
     refs.ordersList.innerHTML = renderEmptyState("Aucune commande client enregistrée.");
@@ -2326,7 +2353,7 @@ function renderPersonnel() {
     return;
   }
 
-  const items = state.tables.personnel.items ?? [];
+  const items = ensureTableState("personnel").items;
 
   if (!items.length) {
     refs.personnelTable.innerHTML = renderEmptyState(
@@ -4081,7 +4108,7 @@ async function handleProductDelete(button) {
   }
 }
 
-async function handleWishlistAdd(productId) {
+async function handleWishlistToggle(productId) {
   try {
     const result = await apiRequest("/api/wishlist", {
       method: "POST",
@@ -4091,6 +4118,27 @@ async function handleWishlistAdd(productId) {
     });
     Object.assign(state, result.appState);
     await refreshTableData(["products", "wishlist"]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
+async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
+  if (!Number.isInteger(desiredQty) || desiredQty < 1) {
+    showFlash("La quantité souhaitée doit être au moins de 1.", "error");
+    return;
+  }
+
+  try {
+    const result = await apiRequest(`/api/wishlist/${wishlistId}`, {
+      method: "PATCH",
+      body: {
+        desiredQty,
+      },
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["wishlist"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -4664,10 +4712,24 @@ function handleDocumentClick(event) {
     return;
   }
 
-  const productWishlistButton = event.target.closest("[data-product-wishlist-add]");
+  const productWishlistButton = event.target.closest("[data-product-wishlist-toggle]");
 
   if (productWishlistButton) {
-    void handleWishlistAdd(productWishlistButton.dataset.productWishlistAdd);
+    void handleWishlistToggle(productWishlistButton.dataset.productWishlistToggle);
+    return;
+  }
+
+  const wishlistQtySaveButton = event.target.closest("[data-wishlist-qty-save]");
+
+  if (wishlistQtySaveButton) {
+    const wishlistCard = wishlistQtySaveButton.closest(".wishlist-card");
+    const qtyInput = wishlistCard?.querySelector("[data-wishlist-qty-input]");
+    const desiredQty = Number(qtyInput?.value || 0);
+
+    void handleWishlistQtyUpdate(
+      wishlistQtySaveButton.dataset.wishlistQtySave,
+      desiredQty,
+    );
     return;
   }
 
@@ -4709,7 +4771,11 @@ function handleDocumentClick(event) {
   const wishlistDeleteButton = event.target.closest("[data-wishlist-delete]");
 
   if (wishlistDeleteButton) {
-    void handleTableRecordDelete("wishlist", wishlistDeleteButton.dataset.wishlistDelete, "ce produit de la wishlist");
+    void handleTableRecordDelete(
+      "wishlist",
+      wishlistDeleteButton.dataset.wishlistDelete,
+      "ce produit de la wishlist",
+    );
     return;
   }
 
