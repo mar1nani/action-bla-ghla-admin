@@ -5327,3 +5327,13 @@ body.mobile-sidebar-open .sidebar-backdrop {
     text-overflow: ellipsis;
   }
 }
+
+@media (max-width: 980px) {
+  #wishlist .wishlist-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #wishlist .wishlist-card-qty-controls {
+    grid-template-columns: 1fr;
+  }
+}
