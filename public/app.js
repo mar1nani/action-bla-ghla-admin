@@ -1391,6 +1391,13 @@ function renderDashboardCards() {
       label: "Stock Maroc",
       value: formatNumber(totals.totalMoroccoStock ?? 0, 0),
       meta: "disponible à la vente",
+      extra: [
+        `Coût stock ${formatCurrency(totals.totalMoroccoStockCostMad ?? 0, "MAD")}`,
+        `Vente potentielle ${formatCurrency(
+          totals.totalMoroccoStockPotentialRevenueMad ?? 0,
+          "MAD",
+        )}`,
+      ],
     },
     {
       label: "Achats",
@@ -1420,6 +1427,17 @@ function renderDashboardCards() {
           <span class="metric-card-label">${escapeHtml(card.label)}</span>
           <strong>${escapeHtml(card.value)}</strong>
           <small>${escapeHtml(card.meta)}</small>
+          ${
+            card.extra?.length
+              ? `
+                <div class="metric-card-extra">
+                  ${card.extra
+                    .map((line) => `<span>${escapeHtml(line)}</span>`)
+                    .join("")}
+                </div>
+              `
+              : ""
+          }
         </article>
       `,
     )
@@ -2882,6 +2900,8 @@ function applyProductSearchSelection(row, productId) {
   const productField = row.querySelector('[data-field="productId"]');
   const input = row.querySelector("[data-product-search-input]");
   const product = getProductById(productId);
+  const salePriceField = row.querySelector('[data-field="unitSalePriceMad"]');
+  const purchasePriceField = row.querySelector('[data-field="unitPurchasePriceEur"]');
 
   if (!productField || !input || !product) {
     return;
@@ -2889,6 +2909,15 @@ function applyProductSearchSelection(row, productId) {
 
   productField.value = product.id;
   input.value = product.name;
+
+  if (salePriceField) {
+    salePriceField.value = formatInputAmount(product.defaultSalePriceMad || 0);
+  }
+
+  if (purchasePriceField) {
+    purchasePriceField.value = formatInputAmount(product.defaultPurchasePriceEur || 0);
+  }
+
   closeProductSearchResults(row);
   updateRowsForType(row.dataset.type);
   updateAllSummaries();
