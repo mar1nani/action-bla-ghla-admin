@@ -273,6 +273,10 @@ const TABLE_ENDPOINTS = {
   personnel: "/api/users",
 };
 
+const TABLE_PAGE_SIZES = {
+  available: 12,
+};
+
 const ICONS = {
   edit: `
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1122,7 +1126,7 @@ function resetAllTableFilters() {
 function buildTableQuery(tableKey, page = 1) {
   const params = new URLSearchParams({
     page: String(page),
-    pageSize: "10",
+    pageSize: String(TABLE_PAGE_SIZES[tableKey] || 10),
   });
   const filters = getTableFilters(tableKey);
 
