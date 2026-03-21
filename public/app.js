@@ -1885,6 +1885,7 @@ function renderAvailableProducts() {
   }
 
   const items = ensureTableState("available").items;
+  const wishlistProductIds = new Set(state.wishlistProductIds ?? []);
 
   if (!items.length) {
     refs.availableGrid.innerHTML = renderEmptyState(
@@ -1897,10 +1898,27 @@ function renderAvailableProducts() {
   refs.availableGrid.innerHTML = `
     <div class="available-products-grid">
       ${items
-        .map(
-          (product) => `
+        .map((product) => {
+          const isWishlisted = wishlistProductIds.has(product.id);
+
+          return `
             <article class="available-stock-card">
               <div class="available-stock-media">
+                <button
+                  class="ghost-button table-action-button table-icon-favorite available-stock-heart ${
+                    isWishlisted ? "is-active" : ""
+                  }"
+                  type="button"
+                  data-product-wishlist-toggle="${escapeHtml(product.id)}"
+                  aria-label="${
+                    isWishlisted
+                      ? `Retirer ${escapeHtml(product.name)} de la wishlist`
+                      : `Ajouter ${escapeHtml(product.name)} à la wishlist`
+                  }"
+                  title="${isWishlisted ? "Retirer de la wishlist" : "Ajouter à la wishlist"}"
+                >
+                  ${renderIcon("heart")}
+                </button>
                 ${renderProductThumb({
                   imageUrl: product.imageUrl,
                   label: product.name,
@@ -1945,8 +1963,8 @@ function renderAvailableProducts() {
                 </div>
               </div>
             </article>
-          `,
-        )
+          `;
+        })
         .join("")}
     </div>
   `;

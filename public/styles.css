@@ -4118,11 +4118,19 @@ body.mobile-sidebar-open .sidebar-backdrop {
 }
 
 .available-stock-media {
+  position: relative;
   display: grid;
   place-items: center;
   padding: 10px;
   border-radius: 20px;
   background: rgba(0, 87, 184, 0.05);
+}
+
+.available-stock-heart {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
 }
 
 .available-stock-thumb,
