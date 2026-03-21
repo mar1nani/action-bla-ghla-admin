@@ -277,6 +277,21 @@ function filterProducts(items, query) {
   return items.filter((product) => matchesFilterSearch(query, product.name));
 }
 
+function filterWishlist(items, query) {
+  return items.filter((entry) =>
+    matchesFilterSearch(
+      query,
+      entry.name,
+      entry.createdByName,
+      entry.createdByLogin,
+      entry.notes,
+      entry.defaultSalePriceMad,
+      entry.metrics?.franceStock,
+      entry.metrics?.moroccoStock,
+    ),
+  );
+}
+
 function filterPurchases(items, query) {
   return items.filter(
     (purchase) =>
@@ -333,6 +348,50 @@ function filterOrders(items, query) {
         (order.items ?? []).map((item) => `${item.productName} ${item.qty}`),
       ),
   );
+}
+
+function buildWishlistItems(state, store) {
+  const productById = new Map(state.products.map((product) => [product.id, product]));
+
+  return (store.wishlist ?? [])
+    .map((entry) => {
+      const product = productById.get(entry.productId);
+
+      if (!product) {
+        return null;
+      }
+
+      return {
+        id: entry.id,
+        productId: product.id,
+        createdAt: entry.createdAt || new Date().toISOString(),
+        createdByLogin: entry.createdByLogin || "",
+        createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
+        notes: entry.notes || "",
+        name: product.name,
+        imageUrl: product.imageUrl || "",
+        weightKg: product.weightKg,
+        defaultPurchasePriceEur: product.defaultPurchasePriceEur,
+        defaultSalePriceMad: product.defaultSalePriceMad,
+        metrics: product.metrics,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+}
+
+function buildAvailableProducts(items) {
+  return [...items]
+    .filter((product) => (product.metrics?.moroccoStock ?? 0) > 0)
+    .sort((left, right) => {
+      const stockDelta = (right.metrics?.moroccoStock ?? 0) - (left.metrics?.moroccoStock ?? 0);
+
+      if (stockDelta !== 0) {
+        return stockDelta;
+      }
+
+      return left.name.localeCompare(right.name, "fr");
+    });
 }
 
 function assertNonNegativeStocks(store) {
@@ -1282,12 +1341,32 @@ app.get(
   asyncRoute(async (request, response) => {
     const store = await readStore();
     const state = buildPublicState(store, request);
+    const wishlistIds = new Set(state.wishlistProductIds ?? []);
     const items = state.products.map((product) => ({
       ...product,
       hasHistory: productHasHistory(product.id, store),
+      isWishlisted: wishlistIds.has(product.id),
     }));
 
     response.json(paginateItems(filterProducts(items, request.query), request.query));
+  }),
+);
+
+app.get(
+  "/api/wishlist",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    response.json(paginateItems(filterWishlist(buildWishlistItems(state, store), request.query), request.query));
+  }),
+);
+
+app.get(
+  "/api/available-products",
+  asyncRoute(async (request, response) => {
+    const store = await readStore();
+    const state = buildPublicState(store, request);
+    response.json(paginateItems(buildAvailableProducts(state.products), request.query));
   }),
 );
 
@@ -1509,12 +1588,67 @@ app.delete(
       }
 
       store.products.splice(productIndex, 1);
+      store.wishlist = (store.wishlist ?? []).filter((entry) => entry.productId !== product.id);
       await removeProductImage(product.imageUrl);
       return store;
     });
 
     response.json({
       message: "Produit supprimé.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/wishlist",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const user = getAuthenticatedUser(request, store);
+      const product = findProduct(request.body.productId, store);
+      const existingEntry = (store.wishlist ?? []).find((entry) => entry.productId === product.id);
+
+      if (existingEntry) {
+        throw createValidationError("Ce produit est déjà dans la wishlist.");
+      }
+
+      store.wishlist = store.wishlist ?? [];
+      store.wishlist.push({
+        id: createId("wish"),
+        productId: product.id,
+        createdAt: new Date().toISOString(),
+        createdByLogin: user?.login || "",
+        createdByName: user?.displayName || user?.login || "Équipe",
+      });
+
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Produit ajouté à la wishlist.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/wishlist/:wishlistId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const wishlistIndex = (store.wishlist ?? []).findIndex(
+        (entry) => entry.id === request.params.wishlistId,
+      );
+
+      if (wishlistIndex === -1) {
+        throw createNotFoundError("Entrée wishlist introuvable.");
+      }
+
+      store.wishlist.splice(wishlistIndex, 1);
+      return store;
+    });
+
+    response.json({
+      message: "Produit retiré de la wishlist.",
       appState: buildPublicState(nextStore, request),
     });
   }),

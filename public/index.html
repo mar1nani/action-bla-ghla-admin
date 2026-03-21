@@ -102,6 +102,52 @@
             <span class="sidebar-label">Produits</span>
           </a>
           <a
+            href="/wishlist"
+            class="sidebar-link"
+            data-section-link="wishlist"
+            title="Wishlist"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 20.3l-1.4-1.3C5 13.9 2 11.1 2 7.7 2 5 4.1 3 6.8 3c1.7 0 3.3.8 4.2 2.2C11.9 3.8 13.5 3 15.2 3 17.9 3 20 5 20 7.7c0 3.4-3 6.2-8.6 11.3L12 20.3z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Wishlist</span>
+          </a>
+          <a
+            href="/available-stock"
+            class="sidebar-link"
+            data-section-link="available"
+            title="Stock disponible"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+                <path
+                  d="M12 12l8-4.5M12 12L4 7.5M12 12v9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Stock dispo</span>
+          </a>
+          <a
             href="/purchases"
             class="sidebar-link"
             data-section-link="purchases"
@@ -1038,6 +1084,40 @@
               </form>
             </article>
           </div>
+        </section>
+
+        <section id="wishlist" class="section">
+          <article class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Achat partagé</p>
+                <h3>Wishlist produits</h3>
+              </div>
+            </div>
+            <p class="section-copy">
+              Utilise le coeur dans la page Produits pour préparer les prochains achats avec Malak.
+            </p>
+            <div class="table-shell">
+              <div id="wishlist-table"></div>
+            </div>
+            <div id="wishlist-pagination" class="table-pagination"></div>
+          </article>
+        </section>
+
+        <section id="available" class="section">
+          <article class="panel panel-showcase">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Vente au Maroc</p>
+                <h3>Stock disponible</h3>
+              </div>
+            </div>
+            <p class="section-copy">
+              Les produits sont triés par stock Maroc décroissant et chargés par lots de 10.
+            </p>
+            <div id="available-grid"></div>
+            <div id="available-pagination" class="table-pagination"></div>
+          </article>
         </section>
 
         <section id="stats" class="section">

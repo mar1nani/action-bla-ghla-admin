@@ -19,6 +19,8 @@ const state = {
   },
   settings: {},
   products: [],
+  wishlistProductIds: [],
+  wishlistCount: 0,
   purchases: [],
   shipments: [],
   orders: [],
@@ -35,6 +37,8 @@ const state = {
   },
   tables: {
     products: { items: [], pagination: null },
+    wishlist: { items: [], pagination: null },
+    available: { items: [], pagination: null },
     purchases: { items: [], pagination: null },
     shipments: { items: [], pagination: null },
     orders: { items: [], pagination: null },
@@ -99,6 +103,14 @@ const PAGE_CONFIG = {
     path: "/products",
     documentTitle: "Produits",
   },
+  wishlist: {
+    path: "/wishlist",
+    documentTitle: "Wishlist",
+  },
+  available: {
+    path: "/available-stock",
+    documentTitle: "Stock disponible",
+  },
   purchases: {
     path: "/purchases",
     documentTitle: "Achats",
@@ -162,6 +174,10 @@ const refs = {
   activityList: document.querySelector("#activity-list"),
   productsTable: document.querySelector("#products-table"),
   productsPagination: document.querySelector("#products-pagination"),
+  wishlistTable: document.querySelector("#wishlist-table"),
+  wishlistPagination: document.querySelector("#wishlist-pagination"),
+  availableGrid: document.querySelector("#available-grid"),
+  availablePagination: document.querySelector("#available-pagination"),
   productsCreatePurchaseButton: document.querySelector("#products-create-purchase-button"),
   productsCreateOrderButton: document.querySelector("#products-create-order-button"),
   purchasesList: document.querySelector("#purchases-list"),
@@ -249,6 +265,8 @@ const MODAL_TO_FORM_TYPE = {
 
 const TABLE_ENDPOINTS = {
   products: "/api/products",
+  wishlist: "/api/wishlist",
+  available: "/api/available-products",
   purchases: "/api/purchases",
   shipments: "/api/shipments",
   orders: "/api/orders",
@@ -290,6 +308,19 @@ const ICONS = {
       <path d="M15 3v5h4"></path>
       <path d="M10 12h6"></path>
       <path d="M10 16h6"></path>
+    </svg>
+  `,
+  heart: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20.3l-1.4-1.3C5 13.9 2 11.1 2 7.7 2 5 4.1 3 6.8 3c1.7 0 3.3.8 4.2 2.2C11.9 3.8 13.5 3 15.2 3 17.9 3 20 5 20 7.7c0 3.4-3 6.2-8.6 11.3L12 20.3z"></path>
+    </svg>
+  `,
+  stock: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"></path>
+      <path d="M12 12l8-4.5"></path>
+      <path d="M12 12L4 7.5"></path>
+      <path d="M12 12v9"></path>
     </svg>
   `,
 };
@@ -1564,6 +1595,7 @@ function renderPagination(tableKey, container) {
 function renderProductsTable() {
   const items = state.tables.products.items ?? [];
   const selectedProductIds = new Set(getSelectedProductsForPurchase().map((product) => product.id));
+  const wishlistProductIds = new Set(state.wishlistProductIds ?? []);
 
   updateProductsCreatePurchaseButton();
 
@@ -1610,6 +1642,7 @@ function renderProductsTable() {
           .map(
             (product) => {
               const hasHistory = Boolean(product.hasHistory);
+              const isWishlisted = wishlistProductIds.has(product.id);
 
               return `
               <tr>
@@ -1670,6 +1703,24 @@ function renderProductsTable() {
                 <td>
                   <div class="table-actions">
                     <button
+                      class="ghost-button table-action-button table-icon-favorite ${
+                        isWishlisted ? "is-active" : ""
+                      }"
+                      type="button"
+                      data-product-wishlist-add="${escapeHtml(product.id)}"
+                      aria-label="${
+                        isWishlisted
+                          ? `Produit déjà dans la wishlist`
+                          : `Ajouter ${escapeHtml(product.name)} à la wishlist`
+                      }"
+                      title="${
+                        isWishlisted ? "Déjà dans la wishlist" : "Ajouter à la wishlist"
+                      }"
+                      ${isWishlisted ? "disabled" : ""}
+                    >
+                      ${renderIcon("heart")}
+                    </button>
+                    <button
                       class="ghost-button table-action-button"
                       type="button"
                       data-product-edit="${escapeHtml(product.id)}"
@@ -1706,6 +1757,171 @@ function renderProductsTable() {
   `;
 
   renderPagination("products", refs.productsPagination);
+}
+
+function renderWishlistTable() {
+  if (!refs.wishlistTable || !refs.wishlistPagination) {
+    return;
+  }
+
+  const items = state.tables.wishlist.items ?? [];
+
+  if (!items.length) {
+    refs.wishlistTable.innerHTML = renderEmptyState(
+      "Aucun produit dans la wishlist pour le moment.",
+    );
+    renderPagination("wishlist", refs.wishlistPagination);
+    return;
+  }
+
+  refs.wishlistTable.innerHTML = `
+    <table class="data-table">
+      <colgroup>
+        <col class="table-col-photo" />
+        <col class="table-col-product" />
+        <col class="table-col-small" />
+        <col class="table-col-small" />
+        <col class="table-col-small" />
+        <col class="table-col-medium" />
+        <col class="table-col-actions" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Produit</th>
+          <th>Stock MA</th>
+          <th>Vente</th>
+          <th>Poids</th>
+          <th>Ajouté par</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items
+          .map(
+            (item) => `
+              <tr>
+                <td>
+                  ${renderProductThumb({
+                    imageUrl: item.imageUrl,
+                    label: item.name,
+                    className: "product-thumb-table",
+                    fallback: item.name.slice(0, 2).toUpperCase(),
+                    button: true,
+                  })}
+                </td>
+                <td>${renderPrimaryTableCell(
+                  item.name,
+                  `FR ${formatNumber(item.metrics?.franceStock ?? 0, 0)} · MA ${formatNumber(
+                    item.metrics?.moroccoStock ?? 0,
+                    0,
+                  )}`,
+                )}</td>
+                <td>${escapeHtml(formatNumber(item.metrics?.moroccoStock ?? 0, 0))}</td>
+                <td>${escapeHtml(formatCurrency(item.defaultSalePriceMad ?? 0, "MAD"))}</td>
+                <td>${escapeHtml(formatWeight(item.weightKg))}</td>
+                <td>${renderPrimaryTableCell(
+                  item.createdByName || "Équipe",
+                  formatDate(item.createdAt),
+                )}</td>
+                <td>
+                  <div class="table-actions">
+                    <button
+                      class="ghost-button table-action-button table-icon-danger"
+                      type="button"
+                      data-wishlist-delete="${escapeHtml(item.id)}"
+                      aria-label="Retirer de la wishlist"
+                      title="Retirer de la wishlist"
+                    >
+                      ${renderIcon("delete")}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+
+  renderPagination("wishlist", refs.wishlistPagination);
+}
+
+function renderAvailableProducts() {
+  if (!refs.availableGrid || !refs.availablePagination) {
+    return;
+  }
+
+  const items = state.tables.available.items ?? [];
+
+  if (!items.length) {
+    refs.availableGrid.innerHTML = renderEmptyState(
+      "Aucun produit n'est actuellement disponible à la vente au Maroc.",
+    );
+    renderPagination("available", refs.availablePagination);
+    return;
+  }
+
+  refs.availableGrid.innerHTML = `
+    <div class="available-products-grid">
+      ${items
+        .map(
+          (product) => `
+            <article class="available-stock-card">
+              <div class="available-stock-media">
+                ${renderProductThumb({
+                  imageUrl: product.imageUrl,
+                  label: product.name,
+                  className: "available-stock-thumb",
+                  fallback: product.name.slice(0, 2).toUpperCase(),
+                  button: true,
+                })}
+              </div>
+              <div class="available-stock-copy">
+                <p class="eyebrow">Disponible Maroc</p>
+                <h4>${escapeHtml(product.name)}</h4>
+                <div class="available-stock-hero">
+                  <strong>${escapeHtml(formatNumber(product.metrics?.moroccoStock ?? 0, 0))}</strong>
+                  <span>unités prêtes à vendre</span>
+                </div>
+                <div class="available-stock-stats">
+                  <div>
+                    <span>Prix vente</span>
+                    <strong>${escapeHtml(formatCurrency(product.defaultSalePriceMad ?? 0, "MAD"))}</strong>
+                  </div>
+                  <div>
+                    <span>Coût Maroc</span>
+                    <strong>${escapeHtml(formatCurrency(product.metrics?.avgLandedCostMad ?? 0, "MAD"))}</strong>
+                  </div>
+                  <div>
+                    <span>Valeur stock</span>
+                    <strong>${escapeHtml(
+                      formatCurrency(
+                        (product.metrics?.moroccoStock ?? 0) * (product.metrics?.avgLandedCostMad ?? 0),
+                        "MAD",
+                      ),
+                    )}</strong>
+                  </div>
+                  <div>
+                    <span>CA potentiel</span>
+                    <strong>${escapeHtml(
+                      formatCurrency(
+                        (product.metrics?.moroccoStock ?? 0) * (product.defaultSalePriceMad ?? 0),
+                        "MAD",
+                      ),
+                    )}</strong>
+                  </div>
+                </div>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+
+  renderPagination("available", refs.availablePagination);
 }
 
 function renderPurchases() {
@@ -2387,6 +2603,8 @@ function renderAll() {
   renderLowStock();
   renderActivity();
   renderProductsTable();
+  renderWishlistTable();
+  renderAvailableProducts();
   renderPurchases();
   renderShipments();
   renderOrders();
@@ -3816,7 +4034,7 @@ async function handleProductSubmit(event) {
     });
     Object.assign(state, result.appState);
     closeModal("product-modal");
-    await refreshTableData(["products", "purchases"]);
+    await refreshTableData(["products", "purchases", "wishlist", "available"]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("product", error.message);
@@ -3855,10 +4073,26 @@ async function handleProductDelete(button) {
       resetProductForm();
     }
 
-    await refreshTableData(["products", "purchases"]);
+    await refreshTableData(["products", "purchases", "wishlist", "available"]);
     showFlash(result.message);
   } catch (error) {
     button.disabled = false;
+    showFlash(error.message, "error");
+  }
+}
+
+async function handleWishlistAdd(productId) {
+  try {
+    const result = await apiRequest("/api/wishlist", {
+      method: "POST",
+      body: {
+        productId,
+      },
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["products", "wishlist"]);
+    showFlash(result.message);
+  } catch (error) {
     showFlash(error.message, "error");
   }
 }
@@ -3906,7 +4140,7 @@ async function handlePurchaseSubmit(event) {
     }
 
     closeModal("purchase-modal");
-    await refreshTableData(["purchases", "products"]);
+    await refreshTableData(["purchases", "products", "wishlist"]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("purchase", error.message);
@@ -3960,7 +4194,7 @@ async function handleShipmentSubmit(event) {
     }
 
     closeModal("shipment-modal");
-    await refreshTableData(["shipments", "products", "purchases"]);
+    await refreshTableData(["shipments", "products", "purchases", "wishlist", "available"]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("shipment", error.message);
@@ -4017,7 +4251,7 @@ async function handleOrderSubmit(event) {
     }
 
     closeModal("order-modal");
-    await refreshTableData(["orders", "products"]);
+    await refreshTableData(["orders", "products", "available"]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("order", error.message);
@@ -4158,10 +4392,11 @@ async function handleTableRecordDelete(tableKey, recordId, label) {
 
     const impactedTables =
       {
-        products: ["products", "purchases"],
-        purchases: ["purchases", "products"],
-        shipments: ["shipments", "products", "purchases"],
-        orders: ["orders", "products"],
+        products: ["products", "purchases", "wishlist", "available"],
+        wishlist: ["wishlist", "products"],
+        purchases: ["purchases", "products", "wishlist"],
+        shipments: ["shipments", "products", "purchases", "wishlist", "available"],
+        orders: ["orders", "products", "available"],
       }[tableKey] || [tableKey];
 
     await refreshTableData(impactedTables);
@@ -4178,7 +4413,7 @@ async function handleOrderSummaryUpdate(orderId, payload) {
       body: payload,
     });
     Object.assign(state, result.appState);
-    await refreshTableData(["orders"]);
+    await refreshTableData(["orders", "available"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -4192,7 +4427,7 @@ async function handleShipmentSummaryUpdate(shipmentId, payload) {
       body: payload,
     });
     Object.assign(state, result.appState);
-    await refreshTableData(["shipments", "products", "purchases"]);
+    await refreshTableData(["shipments", "products", "purchases", "wishlist", "available"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -4429,6 +4664,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const productWishlistButton = event.target.closest("[data-product-wishlist-add]");
+
+  if (productWishlistButton) {
+    void handleWishlistAdd(productWishlistButton.dataset.productWishlistAdd);
+    return;
+  }
+
   const purchaseEditButton = event.target.closest("[data-purchase-edit]");
 
   if (purchaseEditButton) {
@@ -4461,6 +4703,13 @@ function handleDocumentClick(event) {
 
   if (purchaseDeleteButton) {
     void handleTableRecordDelete("purchases", purchaseDeleteButton.dataset.purchaseDelete, "achat");
+    return;
+  }
+
+  const wishlistDeleteButton = event.target.closest("[data-wishlist-delete]");
+
+  if (wishlistDeleteButton) {
+    void handleTableRecordDelete("wishlist", wishlistDeleteButton.dataset.wishlistDelete, "ce produit de la wishlist");
     return;
   }
 
