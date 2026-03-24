@@ -273,6 +273,57 @@
         </nav>
 
         <div class="sidebar-footer">
+          <div class="sidebar-quick-create">
+            <button
+              id="sidebar-quick-create-toggle"
+              class="sidebar-quick-create-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-controls="sidebar-quick-create-menu"
+            >
+              <span>Ajouter</span>
+              <span class="sidebar-quick-create-plus">+</span>
+            </button>
+            <div id="sidebar-quick-create-menu" class="sidebar-quick-create-menu" role="menu" hidden>
+              <button
+                class="quick-create-item"
+                type="button"
+                data-open-modal="product-modal"
+                data-modal-path="/products"
+                data-form-type="product"
+              >
+                Nouveau produit
+              </button>
+              <button
+                class="quick-create-item"
+                type="button"
+                data-open-modal="purchase-modal"
+                data-modal-path="/purchases"
+                data-form-type="purchase"
+              >
+                Nouvel achat
+              </button>
+              <button
+                class="quick-create-item"
+                type="button"
+                data-open-modal="shipment-modal"
+                data-modal-path="/shipments"
+                data-form-type="shipment"
+              >
+                Nouvel envoi
+              </button>
+              <button
+                class="quick-create-item"
+                type="button"
+                data-open-modal="order-modal"
+                data-modal-path="/orders"
+                data-form-type="order"
+              >
+                Nouvelle commande
+              </button>
+            </div>
+          </div>
           <p class="sidebar-note-title">Navigation rapide</p>
           <p class="sidebar-note">
             Ferme la sidebar pour ne garder que les icônes et gagner de la place.

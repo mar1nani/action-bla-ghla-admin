@@ -89,6 +89,7 @@ let activeShipmentDetails = null;
 let activeOrderDetails = null;
 let confirmDialogState = null;
 let activePurchaseItemsEditable = false;
+let activePurchaseSourceWishlistIds = [];
 const selectedProductIdsForPurchase = new Set();
 const selectedPurchaseIdsForShipment = new Set();
 const expandedPurchaseIds = new Set();
@@ -146,6 +147,8 @@ const refs = {
   sectionLinks: [...document.querySelectorAll("[data-section-link]")],
   mobileNavMenuToggle: document.querySelector("#mobile-nav-menu-toggle"),
   mobileQuickCreateToggle: document.querySelector("#mobile-quick-create-toggle"),
+  sidebarQuickCreateToggle: document.querySelector("#sidebar-quick-create-toggle"),
+  sidebarQuickCreateMenu: document.querySelector("#sidebar-quick-create-menu"),
   personnelLink: document.querySelector('[data-section-link="personnel"]'),
   sections: [...document.querySelectorAll(".section")],
   tableFilterForms: [...document.querySelectorAll("[data-table-filter-form]")],
@@ -785,20 +788,35 @@ function todayInputValue() {
 
 function closeQuickCreateMenu() {
   refs.quickCreateMenu.hidden = true;
+  refs.sidebarQuickCreateMenu && (refs.sidebarQuickCreateMenu.hidden = true);
   refs.quickCreateToggle.setAttribute("aria-expanded", "false");
   refs.mobileQuickCreateToggle?.setAttribute("aria-expanded", "false");
+  refs.sidebarQuickCreateToggle?.setAttribute("aria-expanded", "false");
 }
 
-function toggleQuickCreateMenu() {
+function toggleQuickCreateMenu(target = "topbar") {
   if (isMobileViewport() && document.body.classList.contains("mobile-sidebar-open")) {
-    applySidebarState(true);
-    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "true");
+    if (target !== "sidebar") {
+      applySidebarState(true);
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "true");
+    }
   }
 
-  const nextExpanded = refs.quickCreateMenu.hidden;
-  refs.quickCreateMenu.hidden = !nextExpanded;
-  refs.quickCreateToggle.setAttribute("aria-expanded", String(nextExpanded));
-  refs.mobileQuickCreateToggle?.setAttribute("aria-expanded", String(nextExpanded));
+  const menu = target === "sidebar" ? refs.sidebarQuickCreateMenu : refs.quickCreateMenu;
+  const toggle =
+    target === "sidebar" ? refs.sidebarQuickCreateToggle : refs.quickCreateToggle;
+
+  if (!menu || !toggle) {
+    return;
+  }
+
+  const nextExpanded = menu.hidden;
+  closeQuickCreateMenu();
+  menu.hidden = !nextExpanded;
+  toggle.setAttribute("aria-expanded", String(nextExpanded));
+  if (target !== "sidebar") {
+    refs.mobileQuickCreateToggle?.setAttribute("aria-expanded", String(nextExpanded));
+  }
 }
 
 function closeProfileMenu() {
@@ -1124,10 +1142,13 @@ function resetAllTableFilters() {
 }
 
 function buildTableQuery(tableKey, page = 1) {
-  const params = new URLSearchParams({
-    page: String(page),
-    pageSize: String(TABLE_PAGE_SIZES[tableKey] || 10),
-  });
+  const params = new URLSearchParams();
+
+  if (tableKey !== "wishlist") {
+    params.set("page", String(page));
+    params.set("pageSize", String(TABLE_PAGE_SIZES[tableKey] || 10));
+  }
+
   const filters = getTableFilters(tableKey);
 
   Object.entries(filters).forEach(([key, value]) => {
@@ -1378,7 +1399,10 @@ async function loadAppState() {
 }
 
 async function loadTablePage(tableKey, page = 1, options = {}) {
-  const payload = await apiRequest(`${TABLE_ENDPOINTS[tableKey]}?${buildTableQuery(tableKey, page)}`);
+  const query = buildTableQuery(tableKey, page);
+  const payload = await apiRequest(
+    query ? `${TABLE_ENDPOINTS[tableKey]}?${query}` : TABLE_ENDPOINTS[tableKey],
+  );
   state.tables[tableKey] = {
     items: Array.isArray(payload?.items) ? payload.items : [],
     pagination: payload?.pagination ?? null,
@@ -1784,27 +1808,43 @@ function renderProductsTable() {
   renderPagination("products", refs.productsPagination);
 }
 
-function renderWishlistTable() {
-  if (!refs.wishlistTable || !refs.wishlistPagination) {
-    return;
-  }
+function calculateWishlistSummary(items = []) {
+  const totalProducts = items.length;
+  const totalQty = items.reduce((total, item) => total + Number(item.desiredQty || 0), 0);
+  const totalPurchaseEur = items.reduce(
+    (total, item) => total + Number(item.desiredQty || 0) * Number(item.defaultPurchasePriceEur || 0),
+    0,
+  );
+  const totalSaleMad = items.reduce(
+    (total, item) => total + Number(item.desiredQty || 0) * Number(item.defaultSalePriceMad || 0),
+    0,
+  );
+  const totalWeightKg = items.reduce(
+    (total, item) => total + Number(item.desiredQty || 0) * Number(item.weightKg || 0),
+    0,
+  );
 
-  const items = ensureTableState("wishlist").items;
+  return {
+    totalProducts,
+    totalQty,
+    totalPurchaseEur,
+    totalPurchaseMad: totalPurchaseEur * Number(state.settings.eurToMad || 0),
+    totalSaleMad,
+    totalWeightKg,
+  };
+}
 
+function renderWishlistCards(items = [], variant = "pending") {
   if (!items.length) {
-    refs.wishlistTable.innerHTML = renderEmptyState(
-      "Aucun produit dans la wishlist pour le moment.",
-    );
-    renderPagination("wishlist", refs.wishlistPagination);
-    return;
+    return `<div class="empty-state">Aucun produit dans cette catégorie.</div>`;
   }
 
-  refs.wishlistTable.innerHTML = `
+  return `
     <div class="wishlist-grid">
       ${items
         .map(
           (item) => `
-            <article class="wishlist-card">
+            <article class="wishlist-card ${item.purchased ? "is-purchased" : ""}">
               <div class="wishlist-card-head">
                 ${renderProductThumb({
                   imageUrl: item.imageUrl,
@@ -1813,15 +1853,25 @@ function renderWishlistTable() {
                   fallback: item.name.slice(0, 2).toUpperCase(),
                   button: true,
                 })}
-                <button
-                  class="ghost-button table-action-button table-icon-favorite is-active wishlist-heart-button"
-                  type="button"
-                  data-product-wishlist-toggle="${escapeHtml(item.productId)}"
-                  aria-label="Retirer ${escapeHtml(item.name)} de la wishlist"
-                  title="Retirer de la wishlist"
-                >
-                  ${renderIcon("heart")}
-                </button>
+                <div class="wishlist-card-action-stack">
+                  <button
+                    class="ghost-button table-action-button table-icon-favorite is-active wishlist-heart-button"
+                    type="button"
+                    data-product-wishlist-toggle="${escapeHtml(item.productId)}"
+                    aria-label="Retirer ${escapeHtml(item.name)} de la wishlist"
+                    title="Retirer de la wishlist"
+                  >
+                    ${renderIcon("heart")}
+                  </button>
+                  <button
+                    class="ghost-button wishlist-status-toggle ${item.purchased ? "is-active" : ""}"
+                    type="button"
+                    data-wishlist-purchased-toggle="${escapeHtml(item.id)}"
+                    aria-pressed="${item.purchased ? "true" : "false"}"
+                  >
+                    ${escapeHtml(item.purchased ? "Acheté" : "À acheter")}
+                  </button>
+                </div>
               </div>
               <div class="wishlist-card-copy">
                 <h4>${escapeHtml(item.name)}</h4>
@@ -1853,20 +1903,24 @@ function renderWishlistTable() {
               </div>
               <div class="wishlist-card-stats">
                 <div>
-                  <span>Stock MA</span>
-                  <strong>${escapeHtml(formatNumber(item.metrics?.moroccoStock ?? 0, 0))}</strong>
-                </div>
-                <div>
-                  <span>Vente</span>
-                  <strong>${escapeHtml(formatCurrency(item.defaultSalePriceMad ?? 0, "MAD"))}</strong>
+                  <span>Qté</span>
+                  <strong>${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}</strong>
                 </div>
                 <div>
                   <span>Poids</span>
-                  <strong>${escapeHtml(formatWeight(item.weightKg))}</strong>
+                  <strong>${escapeHtml(formatWeight((item.desiredQty ?? 1) * (item.weightKg || 0)))}</strong>
                 </div>
                 <div>
                   <span>Achat</span>
-                  <strong>${escapeHtml(formatCurrency(item.defaultPurchasePriceEur ?? 0, "EUR"))}</strong>
+                  <strong>${escapeHtml(
+                    formatCurrency((item.desiredQty ?? 1) * (item.defaultPurchasePriceEur ?? 0), "EUR"),
+                  )}</strong>
+                </div>
+                <div>
+                  <span>Vente</span>
+                  <strong>${escapeHtml(
+                    formatCurrency((item.desiredQty ?? 1) * (item.defaultSalePriceMad ?? 0), "MAD"),
+                  )}</strong>
                 </div>
               </div>
             </article>
@@ -1875,8 +1929,109 @@ function renderWishlistTable() {
         .join("")}
     </div>
   `;
+}
 
-  renderPagination("wishlist", refs.wishlistPagination);
+function renderWishlistTable() {
+  if (!refs.wishlistTable || !refs.wishlistPagination) {
+    return;
+  }
+
+  const items = ensureTableState("wishlist").items;
+  const pendingItems = items.filter((item) => !item.purchased);
+  const purchasedItems = items.filter((item) => item.purchased);
+  const summary = calculateWishlistSummary(items);
+  const purchasedSummary = calculateWishlistSummary(purchasedItems);
+
+  refs.wishlistPagination.hidden = true;
+  refs.wishlistPagination.innerHTML = "";
+
+  if (!items.length) {
+    refs.wishlistTable.innerHTML = renderEmptyState(
+      "Aucun produit dans la wishlist pour le moment.",
+    );
+    return;
+  }
+
+  refs.wishlistTable.innerHTML = `
+    <div class="wishlist-summary">
+      <div class="wishlist-summary-grid">
+        <article class="wishlist-summary-card">
+          <span>Produits</span>
+          <strong>${escapeHtml(formatNumber(summary.totalProducts, 0))}</strong>
+          <small>${escapeHtml("références suivies")}</small>
+        </article>
+        <article class="wishlist-summary-card">
+          <span>Qté totale</span>
+          <strong>${escapeHtml(formatNumber(summary.totalQty, 0))}</strong>
+          <small>${escapeHtml("unités souhaitées")}</small>
+        </article>
+        <article class="wishlist-summary-card">
+          <span>Poids total</span>
+          <strong>${escapeHtml(formatWeight(summary.totalWeightKg))}</strong>
+          <small>${escapeHtml("à prévoir au transport")}</small>
+        </article>
+        <article class="wishlist-summary-card">
+          <span>Achat total EUR</span>
+          <strong>${escapeHtml(formatCurrency(summary.totalPurchaseEur, "EUR"))}</strong>
+          <small>${escapeHtml("coût d'achat cumulé")}</small>
+        </article>
+        <article class="wishlist-summary-card">
+          <span>Achat total DH</span>
+          <strong>${escapeHtml(formatCurrency(summary.totalPurchaseMad, "MAD"))}</strong>
+          <small>${escapeHtml("converti avec le taux actuel")}</small>
+        </article>
+        <article class="wishlist-summary-card">
+          <span>Vente totale</span>
+          <strong>${escapeHtml(formatCurrency(summary.totalSaleMad, "MAD"))}</strong>
+          <small>${escapeHtml("si tout est vendu")}</small>
+        </article>
+      </div>
+      <div class="wishlist-summary-actions">
+        <div class="wishlist-summary-status">
+          <div class="wishlist-status-chip is-pending">
+            <span>À acheter</span>
+            <strong>${escapeHtml(formatNumber(pendingItems.length, 0))}</strong>
+          </div>
+          <div class="wishlist-status-chip is-purchased">
+            <span>Achetés</span>
+            <strong>${escapeHtml(formatNumber(purchasedItems.length, 0))}</strong>
+          </div>
+          <div class="wishlist-status-chip is-purchased">
+            <span>Qté achetée</span>
+            <strong>${escapeHtml(formatNumber(purchasedSummary.totalQty, 0))}</strong>
+          </div>
+        </div>
+        <button
+          class="primary-button"
+          type="button"
+          data-wishlist-convert-purchased
+          ${purchasedItems.length ? "" : "disabled"}
+        >
+          Créer l'achat fournisseur depuis les produits déjà achetés
+        </button>
+      </div>
+    </div>
+    <section class="wishlist-group">
+      <div class="wishlist-group-head">
+        <div>
+          <p class="eyebrow">En attente</p>
+          <h4>Produits à acheter</h4>
+        </div>
+        <span class="pill pill-wait">${escapeHtml(formatNumber(pendingItems.length, 0))}</span>
+      </div>
+      ${renderWishlistCards(pendingItems, "pending")}
+    </section>
+    <section class="wishlist-group">
+      <div class="wishlist-group-head">
+        <div>
+          <p class="eyebrow">Validé</p>
+          <h4>Produits achetés</h4>
+        </div>
+        <span class="pill pill-ready">${escapeHtml(formatNumber(purchasedItems.length, 0))}</span>
+      </div>
+      ${renderWishlistCards(purchasedItems, "purchased")}
+    </section>
+  `;
 }
 
 function renderAvailableProducts() {
@@ -3482,6 +3637,7 @@ function resetDynamicForm(form, type) {
   activeOrderEditId = type === "order" ? "" : activeOrderEditId;
 
   if (type === "purchase") {
+    activePurchaseSourceWishlistIds = [];
     setPurchaseFormMode();
     setPurchaseItemsEditMode(false);
     form.elements.supplierName.value = "Action";
@@ -3513,7 +3669,16 @@ function resetDynamicForm(form, type) {
   container.innerHTML = "";
 
   if (type === "purchase") {
-    prefillPurchaseRows(getSelectedProductsForPurchase().map((product) => product.id));
+    const selectedProductIds = getSelectedProductsForPurchase().map((product) => product.id);
+
+    if (selectedProductIds.length) {
+      prefillPurchaseRows(selectedProductIds);
+      return;
+    }
+
+    setPurchaseItemsEditMode(true);
+    addLineItemRow("purchase", {}, { prepend: true });
+    updateAllSummaries();
     return;
   }
 
@@ -3526,6 +3691,7 @@ function prefillPurchaseRows(productIds = []) {
   const uniqueProductIds = [...new Set(productIds)].filter((productId) => getProductById(productId));
 
   container.innerHTML = "";
+  setPurchaseItemsEditMode(false);
 
   uniqueProductIds.forEach((productId) => {
     const product = getProductById(productId);
@@ -3533,6 +3699,26 @@ function prefillPurchaseRows(productIds = []) {
     addLineItemRow("purchase", {
       productId,
       qty: 1,
+      unitPurchasePriceEur: product?.defaultPurchasePriceEur ?? "",
+    });
+  });
+
+  updateAllSummaries();
+}
+
+function prefillPurchaseRowsFromWishlist(items = []) {
+  const container = formTypes.purchase.container;
+  const validItems = (items ?? []).filter((item) => getProductById(item.productId));
+
+  container.innerHTML = "";
+  setPurchaseItemsEditMode(false);
+
+  validItems.forEach((item) => {
+    const product = getProductById(item.productId);
+
+    addLineItemRow("purchase", {
+      productId: item.productId,
+      qty: item.desiredQty || 1,
       unitPurchasePriceEur: product?.defaultPurchasePriceEur ?? "",
     });
   });
@@ -3674,6 +3860,35 @@ function openShipmentFromSelectedPurchases() {
   openModal("shipment-modal");
 }
 
+async function openPurchaseFromWishlistPurchased() {
+  const wishlistItems = ensureTableState("wishlist").items;
+  const purchasedItems = wishlistItems.filter((item) => item.purchased);
+
+  if (!purchasedItems.length) {
+    showFlash("Marque au moins un produit de la wishlist comme acheté.", "error");
+    return;
+  }
+
+  const confirmed = await openConfirmDialog({
+    title: "Transformer les produits achetés en achat fournisseur ?",
+    message:
+      "La commande fournisseur sera préremplie avec les articles marqués comme achetés. Ils seront retirés de la wishlist quand tu enregistreras l'achat.",
+    confirmLabel: "Continuer vers l'achat",
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
+  closeQuickCreateMenu();
+  setModalFormError("purchase");
+  resetDynamicForm(refs.purchaseForm, "purchase");
+  activePurchaseSourceWishlistIds = purchasedItems.map((item) => item.id);
+  prefillPurchaseRowsFromWishlist(purchasedItems);
+  navigateToPath("/purchases");
+  openModal("purchase-modal");
+}
+
 function openCreateFlow(button) {
   const modalId = button.dataset.openModal;
   const targetPath = button.dataset.modalPath;
@@ -3682,8 +3897,15 @@ function openCreateFlow(button) {
   closeQuickCreateMenu();
 
   if (formType === "purchase") {
-    navigateToPath("/products");
-    openPurchaseFromSelectedProducts();
+    if (getSelectedProductsForPurchase().length) {
+      navigateToPath("/products");
+      openPurchaseFromSelectedProducts();
+      return;
+    }
+
+    resetDynamicForm(refs.purchaseForm, "purchase");
+    navigateToPath("/purchases");
+    openModal("purchase-modal");
     return;
   }
 
@@ -3924,9 +4146,12 @@ function clearProtectedState() {
   selectedProductIdsForPurchase.clear();
   selectedPurchaseIdsForShipment.clear();
   expandedPurchaseIds.clear();
+  activePurchaseSourceWishlistIds = [];
   activeShipmentSourcePurchaseIds = [];
   state.settings = {};
   state.products = [];
+  state.wishlistProductIds = [];
+  state.wishlistCount = 0;
   state.purchases = [];
   state.shipments = [];
   state.orders = [];
@@ -3943,6 +4168,8 @@ function clearProtectedState() {
   };
   state.tables = {
     products: { items: [], pagination: null },
+    wishlist: { items: [], pagination: null },
+    available: { items: [], pagination: null },
     purchases: { items: [], pagination: null },
     shipments: { items: [], pagination: null },
     orders: { items: [], pagination: null },
@@ -4145,6 +4372,22 @@ async function handleWishlistToggle(productId) {
   }
 }
 
+async function handleWishlistPurchasedToggle(wishlistId, purchased) {
+  try {
+    const result = await apiRequest(`/api/wishlist/${wishlistId}`, {
+      method: "PATCH",
+      body: {
+        purchased,
+      },
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["wishlist"]);
+    showFlash(purchased ? "Produit marqué comme acheté." : "Produit remis dans la liste à acheter.");
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
 async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
   if (!Number.isInteger(desiredQty) || desiredQty < 1) {
     showFlash("La quantité souhaitée doit être au moins de 1.", "error");
@@ -4185,6 +4428,7 @@ async function handlePurchaseSubmit(event) {
       orderNumber: form.elements.orderNumber.value,
       notes: form.elements.notes.value,
       invoiceImageUpload,
+      sourceWishlistIds: !isEditing ? activePurchaseSourceWishlistIds : [],
       items: rows.map((row) => {
         const values = getRowValues(row);
         const product = getProductById(values.productId);
@@ -4206,6 +4450,7 @@ async function handlePurchaseSubmit(event) {
 
     if (!isEditing) {
       selectedProductIdsForPurchase.clear();
+      activePurchaseSourceWishlistIds = [];
     }
 
     closeModal("purchase-modal");
@@ -4635,7 +4880,7 @@ function handleDocumentClick(event) {
 
   if (quickCreateToggle) {
     closeProfileMenu();
-    toggleQuickCreateMenu();
+    toggleQuickCreateMenu("topbar");
     return;
   }
 
@@ -4643,7 +4888,15 @@ function handleDocumentClick(event) {
 
   if (mobileQuickCreateToggle) {
     closeProfileMenu();
-    toggleQuickCreateMenu();
+    toggleQuickCreateMenu("topbar");
+    return;
+  }
+
+  const sidebarQuickCreateToggle = event.target.closest("#sidebar-quick-create-toggle");
+
+  if (sidebarQuickCreateToggle) {
+    closeProfileMenu();
+    toggleQuickCreateMenu("sidebar");
     return;
   }
 
@@ -4706,7 +4959,9 @@ function handleDocumentClick(event) {
   }
 
   if (!event.target.closest(".quick-create")) {
-    closeQuickCreateMenu();
+    if (!event.target.closest(".sidebar-quick-create")) {
+      closeQuickCreateMenu();
+    }
   }
 
   if (!event.target.closest(".profile-menu-shell")) {
@@ -4740,6 +4995,17 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const wishlistPurchasedToggle = event.target.closest("[data-wishlist-purchased-toggle]");
+
+  if (wishlistPurchasedToggle) {
+    const wishlistItem = getTableRecord("wishlist", wishlistPurchasedToggle.dataset.wishlistPurchasedToggle);
+
+    if (wishlistItem) {
+      void handleWishlistPurchasedToggle(wishlistItem.id, !wishlistItem.purchased);
+    }
+    return;
+  }
+
   const wishlistQtySaveButton = event.target.closest("[data-wishlist-qty-save]");
 
   if (wishlistQtySaveButton) {
@@ -4751,6 +5017,13 @@ function handleDocumentClick(event) {
       wishlistQtySaveButton.dataset.wishlistQtySave,
       desiredQty,
     );
+    return;
+  }
+
+  const wishlistConvertButton = event.target.closest("[data-wishlist-convert-purchased]");
+
+  if (wishlistConvertButton) {
+    void openPurchaseFromWishlistPurchased();
     return;
   }
 

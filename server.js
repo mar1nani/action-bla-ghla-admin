@@ -365,6 +365,8 @@ function buildWishlistItems(state, store) {
         id: entry.id,
         productId: product.id,
         desiredQty: Math.max(1, Number(entry.desiredQty || 1)),
+        purchased: Boolean(entry.purchased),
+        purchasedAt: entry.purchasedAt || null,
         createdAt: entry.createdAt || new Date().toISOString(),
         createdByLogin: entry.createdByLogin || "",
         createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
@@ -393,6 +395,14 @@ function buildAvailableProducts(items) {
 
       return left.name.localeCompare(right.name, "fr");
     });
+}
+
+function readWishlistEntryIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((entry) => optionalString(entry)).filter(Boolean))];
 }
 
 function assertNonNegativeStocks(store) {
@@ -1358,7 +1368,10 @@ app.get(
   asyncRoute(async (request, response) => {
     const store = await readStore();
     const state = buildPublicState(store, request);
-    response.json(paginateItems(filterWishlist(buildWishlistItems(state, store), request.query), request.query));
+    response.json({
+      items: filterWishlist(buildWishlistItems(state, store), request.query),
+      pagination: null,
+    });
   }),
 );
 
@@ -1622,6 +1635,8 @@ app.post(
         id: createId("wish"),
         productId: product.id,
         desiredQty: requireInteger(request.body.desiredQty ?? 1, "Quantité souhaitée", { min: 1 }),
+        purchased: false,
+        purchasedAt: null,
         createdAt: new Date().toISOString(),
         createdByLogin: user?.login || "",
         createdByName: user?.displayName || user?.login || "Équipe",
@@ -1652,11 +1667,18 @@ app.patch(
         throw createNotFoundError("Entrée wishlist introuvable.");
       }
 
-      wishlistEntry.desiredQty = requireInteger(
-        request.body.desiredQty,
-        "Quantité souhaitée",
-        { min: 1 },
-      );
+      if (request.body.desiredQty !== undefined) {
+        wishlistEntry.desiredQty = requireInteger(
+          request.body.desiredQty,
+          "Quantité souhaitée",
+          { min: 1 },
+        );
+      }
+
+      if (request.body.purchased !== undefined) {
+        wishlistEntry.purchased = Boolean(request.body.purchased);
+        wishlistEntry.purchasedAt = wishlistEntry.purchased ? new Date().toISOString() : null;
+      }
 
       return store;
     });
@@ -1695,11 +1717,34 @@ app.post(
   "/api/purchases",
   asyncRoute(async (request, response) => {
     const nextStore = await updateStore(async (store) => {
+      const sourceWishlistIds = readWishlistEntryIds(request.body.sourceWishlistIds);
+      const sourceWishlistEntries = sourceWishlistIds.map((wishlistId) => {
+        const entry = (store.wishlist ?? []).find((wishlistEntry) => wishlistEntry.id === wishlistId);
+
+        if (!entry) {
+          throw createNotFoundError("Entrée wishlist introuvable.");
+        }
+
+        if (!entry.purchased) {
+          throw createValidationError(
+            "Tous les produits convertis en achat doivent être marqués comme achetés.",
+          );
+        }
+
+        return entry;
+      });
+
       const purchase = buildPurchaseRecord(request.body, store);
       purchase.invoiceImageUrl =
         (await persistPurchaseInvoiceImage(request.body.invoiceImageUpload, purchase.id)) ||
         purchase.invoiceImageUrl;
       store.purchases.push(purchase);
+      if (sourceWishlistEntries.length) {
+        const sourceWishlistIdSet = new Set(sourceWishlistEntries.map((entry) => entry.id));
+        store.wishlist = (store.wishlist ?? []).filter(
+          (entry) => !sourceWishlistIdSet.has(entry.id),
+        );
+      }
       assertNonNegativeStocks(store);
       return store;
     });
