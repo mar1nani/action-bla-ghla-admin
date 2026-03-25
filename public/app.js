@@ -1567,6 +1567,12 @@ function renderDashboardCards() {
         `À encaisser client ${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")}`,
     },
     {
+      label: "Impayé",
+      value: formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD"),
+      meta:
+        `${formatNumber(totals.totalUnpaidOrders ?? 0, 0)} commandes concernées`,
+    },
+    {
       label: "Catalogue client",
       value: formatNumber(totals.catalogTodaySessions ?? 0, 0),
       meta: "sessions uniques aujourd'hui",
