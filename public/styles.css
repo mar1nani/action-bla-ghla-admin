@@ -1430,6 +1430,23 @@ select:disabled {
   color: var(--muted);
 }
 
+.summary-value-stack {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.summary-value-stack strong {
+  display: block;
+}
+
+.summary-value-stack small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
 .summary-warning {
   color: var(--danger);
   font-size: 0.9rem;
@@ -1540,6 +1557,11 @@ select:disabled {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
+}
+
+.table-currency-cell strong,
+.table-currency-cell small {
+  white-space: nowrap;
 }
 
 .table-lines span {
@@ -4458,6 +4480,24 @@ body.mobile-sidebar-open .sidebar-backdrop {
   font-weight: 800;
 }
 
+.purchase-detail-total {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.purchase-detail-total strong {
+  color: #0057b8;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.purchase-detail-total small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .purchase-detail-table-shell {
   overflow: auto;
   border: 1px solid rgba(15, 37, 71, 0.08);
@@ -5064,10 +5104,23 @@ body.mobile-sidebar-open .sidebar-backdrop {
   text-transform: uppercase;
 }
 
+.metric-card-duo-value {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
 .dashboard-section .metric-card .metric-card-duo-item strong {
   margin-top: 0;
   font-size: 1rem;
   line-height: 1.1;
+}
+
+.dashboard-section .metric-card .metric-card-duo-value small {
+  color: #6c84a2;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .metric-card-extra {

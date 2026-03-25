@@ -607,7 +607,7 @@ function renderPurchaseItemsDetails(purchase) {
             )} pièces`,
           )}</small>
         </div>
-        <span>${escapeHtml(formatCurrency(purchase.totalCostEur, "EUR"))}</span>
+        ${renderEurMadValue(purchase.totalCostEur, "purchase-detail-total")}
       </div>
       <div class="purchase-detail-table-shell">
         <table class="purchase-detail-table">
@@ -628,8 +628,8 @@ function renderPurchaseItemsDetails(purchase) {
                     <td>${escapeHtml(item.productName)}</td>
                     <td>${escapeHtml(formatNumber(item.qty, 0))}</td>
                     <td>${escapeHtml(formatWeight(item.lineWeightKg))}</td>
-                    <td>${escapeHtml(formatCurrency(item.unitPurchasePriceEur, "EUR"))}</td>
-                    <td>${escapeHtml(formatCurrency(item.lineTotalEur, "EUR"))}</td>
+                    <td>${renderEurMadValue(item.unitPurchasePriceEur)}</td>
+                    <td>${renderEurMadValue(item.lineTotalEur)}</td>
                   </tr>
                 `,
               )
@@ -663,6 +663,35 @@ function escapeHtml(value) {
 
 function formatCurrency(value, currency) {
   return currencyFormatters[currency].format(Number(value || 0));
+}
+
+function convertEurToMad(value) {
+  return Number(value || 0) * Number(state.settings?.eurToMad || 0);
+}
+
+function formatEurToMad(value) {
+  return formatCurrency(convertEurToMad(value), "MAD");
+}
+
+function formatRateEurToMadPerKg(value) {
+  return `${formatNumber(convertEurToMad(value), 2)} MAD/kg`;
+}
+
+function renderValueWithSubline(primary, secondary = "", className = "table-primary-cell") {
+  return `
+    <div class="${escapeHtml(className)}">
+      <strong>${escapeHtml(primary)}</strong>
+      ${secondary ? `<small>${escapeHtml(secondary)}</small>` : ""}
+    </div>
+  `;
+}
+
+function renderEurMadValue(valueEur, className = "table-primary-cell table-currency-cell") {
+  return renderValueWithSubline(
+    formatCurrency(valueEur, "EUR"),
+    formatEurToMad(valueEur),
+    className,
+  );
 }
 
 function formatNumber(value, digits = 2) {
@@ -1505,10 +1534,12 @@ function renderDashboardCards() {
         {
           label: "Achats",
           value: formatCurrency(totals.totalPurchaseSpendEur ?? 0, "EUR"),
+          note: formatEurToMad(totals.totalPurchaseSpendEur ?? 0),
         },
         {
           label: "Transporteur",
           value: formatCurrency(totals.totalShippingSpendEur ?? 0, "EUR"),
+          note: formatEurToMad(totals.totalShippingSpendEur ?? 0),
         },
       ],
     },
@@ -1542,7 +1573,11 @@ function renderDashboardCards() {
                       (entry) => `
                         <div class="metric-card-duo-item">
                           <span>${escapeHtml(entry.label)}</span>
-                          <strong>${escapeHtml(entry.value)}</strong>
+                          ${renderValueWithSubline(
+                            entry.value,
+                            entry.note || "",
+                            "metric-card-duo-value",
+                          )}
                         </div>
                       `,
                     )
@@ -1784,12 +1819,9 @@ function renderProductsTable() {
                     </span>
                   </div>
                 </td>
-                <td>${escapeHtml(formatCurrency(product.metrics.avgPurchaseCostEur, "EUR"))}</td>
-                <td>${escapeHtml(
-                  formatCurrency(
-                    (product.weightKg || 0) * (state.settings.transportRatePerKgEur || 0),
-                    "EUR",
-                  ),
+                <td>${renderEurMadValue(product.metrics.avgPurchaseCostEur)}</td>
+                <td>${renderEurMadValue(
+                  (product.weightKg || 0) * (state.settings.transportRatePerKgEur || 0),
                 )}</td>
                 <td>${escapeHtml(formatCurrency(product.metrics.avgLandedCostMad, "MAD"))}</td>
                 <td>${escapeHtml(formatCurrency(product.defaultSalePriceMad, "MAD"))}</td>
@@ -2246,7 +2278,7 @@ function renderPurchases() {
                 <td>${renderPurchaseShipmentChip(purchase)}</td>
                 <td>${escapeHtml(formatNumber(purchase.totalQty, 0))}</td>
                 <td>${escapeHtml(formatWeight(purchase.totalWeightKg))}</td>
-                <td>${escapeHtml(formatCurrency(purchase.totalCostEur, "EUR"))}</td>
+                <td>${renderEurMadValue(purchase.totalCostEur)}</td>
                 <td>
                   <div class="table-actions">
                     <button
@@ -2354,8 +2386,12 @@ function renderShipments() {
                   formatWeight(shipment.packageWeightKg),
                   shipment.reference || "Sans référence",
                 )}</td>
-                <td>${escapeHtml(formatCurrency(shipment.shippingPriceEur, "EUR"))}</td>
-                <td>${escapeHtml(`${formatNumber(shipment.packageRatePerKgEur, 2)} EUR/kg`)}</td>
+                <td>${renderEurMadValue(shipment.shippingPriceEur)}</td>
+                <td>${renderValueWithSubline(
+                  `${formatNumber(shipment.packageRatePerKgEur, 2)} EUR/kg`,
+                  formatRateEurToMadPerKg(shipment.packageRatePerKgEur),
+                  "table-primary-cell table-currency-cell",
+                )}</td>
                 <td>
                   <div class="table-actions">
                     <button
@@ -2913,7 +2949,9 @@ function renderDetailsItemsTable({ items = [], currency = "MAD", mode = "order" 
                       <strong>${escapeHtml(item.productName)}</strong>
                       <small>${escapeHtml(
                         mode === "shipment"
-                          ? `Base ${formatCurrency(item.unitBaseCostEur, "EUR")}`
+                          ? `Base ${formatCurrency(item.unitBaseCostEur, "EUR")} · ${formatEurToMad(
+                              item.unitBaseCostEur,
+                            )}`
                           : `Coût ${formatCurrency(item.unitCostMad, "MAD")}`,
                       )}</small>
                     </div>
@@ -2923,8 +2961,8 @@ function renderDetailsItemsTable({ items = [], currency = "MAD", mode = "order" 
                     mode === "shipment"
                       ? `
                         <td>${escapeHtml(formatWeight(item.lineWeightKg))}</td>
-                        <td>${escapeHtml(formatCurrency(item.shippingCostEur, "EUR"))}</td>
-                        <td>${escapeHtml(formatCurrency(item.totalLandedCostEur, "EUR"))}</td>
+                        <td>${renderEurMadValue(item.shippingCostEur)}</td>
+                        <td>${renderEurMadValue(item.totalLandedCostEur)}</td>
                       `
                       : `
                         <td>${escapeHtml(formatCurrency(item.unitSalePriceMad, currency))}</td>
@@ -3507,9 +3545,11 @@ function updatePurchaseSummary() {
     <div class="summary-line"><span>Poids achat</span><strong>${escapeHtml(
       formatWeight(totalWeightKg),
     )}</strong></div>
-    <div class="summary-line"><span>Total achat</span><strong>${escapeHtml(
+    <div class="summary-line"><span>Total achat</span>${renderValueWithSubline(
       formatCurrency(totalCostEur, "EUR"),
-    )}</strong></div>
+      formatEurToMad(totalCostEur),
+      "summary-value-stack",
+    )}</div>
   `;
 }
 
@@ -3545,12 +3585,16 @@ function updateShipmentSummary() {
     <div class="summary-line"><span>Poids colis</span><strong>${escapeHtml(
       formatWeight(packageWeightKg),
     )}</strong></div>
-    <div class="summary-line"><span>Tarif réel</span><strong>${escapeHtml(
+    <div class="summary-line"><span>Tarif réel</span>${renderValueWithSubline(
       `${formatNumber(rateFromPackage, 2)} EUR/kg`,
-    )}</strong></div>
-    <div class="summary-line"><span>Transport total</span><strong>${escapeHtml(
+      formatRateEurToMadPerKg(rateFromPackage),
+      "summary-value-stack",
+    )}</div>
+    <div class="summary-line"><span>Transport total</span>${renderValueWithSubline(
       formatCurrency(shippingPriceEur, "EUR"),
-    )}</strong></div>
+      formatEurToMad(shippingPriceEur),
+      "summary-value-stack",
+    )}</div>
     ${warning}
   `;
 }
@@ -4794,14 +4838,14 @@ function renderShipmentDetails(shipment) {
         <p class="eyebrow">Logistique</p>
         <h4>${escapeHtml(formatWeight(shipment.packageWeightKg))}</h4>
         <p>Poids articles ${escapeHtml(formatWeight(shipment.totalItemWeightKg))}</p>
-        <p>Tarif ${escapeHtml(`${formatNumber(shipment.packageRatePerKgEur, 2)} EUR/kg`)}</p>
-        <p>Transport ${escapeHtml(formatCurrency(shipment.shippingPriceEur, "EUR"))}</p>
+        <p>Tarif ${escapeHtml(`${formatNumber(shipment.packageRatePerKgEur, 2)} EUR/kg · ${formatRateEurToMadPerKg(shipment.packageRatePerKgEur)}`)}</p>
+        <p>Transport ${escapeHtml(`${formatCurrency(shipment.shippingPriceEur, "EUR")} · ${formatEurToMad(shipment.shippingPriceEur)}`)}</p>
       </article>
       <article class="detail-card detail-card-highlight">
         <p class="eyebrow">Résumé</p>
         <h4>${escapeHtml(formatNumber(shipment.totalQty, 0))} unités</h4>
         <p>Articles ${escapeHtml(formatNumber(shipment.items.length, 0))}</p>
-        <p>Coût total ${escapeHtml(formatCurrency(shipment.totalLandedCostEur, "EUR"))}</p>
+        <p>Coût total ${escapeHtml(`${formatCurrency(shipment.totalLandedCostEur, "EUR")} · ${formatEurToMad(shipment.totalLandedCostEur)}`)}</p>
         <p>Responsable fixé à MALAK</p>
       </article>
     </div>

@@ -453,9 +453,12 @@ function buildPublicCatalogProducts(store) {
     })
     .filter(
       (product) =>
-        product.availability.hasFranceStock ||
-        product.availability.hasMoroccoStock ||
-        product.availability.hasTransitStock,
+        product.defaultSalePriceMad > 0 &&
+        (
+          product.availability.hasFranceStock ||
+          product.availability.hasMoroccoStock ||
+          product.availability.hasTransitStock
+        ),
     )
     .sort(
       (left, right) =>
