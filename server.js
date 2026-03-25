@@ -27,6 +27,7 @@ const SESSION_COOKIE_NAME = "abg_session";
 const sessions = new Map();
 
 const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
+const orderStockStatuses = new Set(["stock_disponible", "precommande"]);
 const paymentStatuses = new Set(["non_payee", "avance", "payee"]);
 const shipmentStatuses = new Set([
   "achete",
@@ -338,6 +339,7 @@ function filterOrders(items, query) {
         order.customer?.city,
         order.customer?.address,
         order.status,
+        order.stockStatus,
         order.paymentStatus,
         order.carrierName,
         order.deliveryPriceMad,
@@ -644,6 +646,26 @@ function ensureStockAvailability(items, metricsById, stockKey, label) {
   }
 }
 
+function resolveOrderStockStatus(value, hasAvailableStock, fallbackValue = "") {
+  const requestedStatus = optionalString(value || fallbackValue);
+
+  if (requestedStatus) {
+    if (!orderStockStatuses.has(requestedStatus)) {
+      throw createValidationError("Le statut stock de la commande est invalide.");
+    }
+
+    if (requestedStatus === "stock_disponible" && !hasAvailableStock) {
+      throw createValidationError(
+        "Le stock Maroc n'est pas suffisant pour cette commande. Passe-la en précommande.",
+      );
+    }
+
+    return requestedStatus;
+  }
+
+  return hasAvailableStock ? "stock_disponible" : "precommande";
+}
+
 function createNotFoundError(message) {
   const error = new Error(message);
   error.status = 404;
@@ -946,9 +968,15 @@ function buildOrderPaymentState({
 }
 
 function buildOrderRecord(payload, store, recordId = createId("ord")) {
-  const metricsById = getProductMetricsMap(store);
-  const eurToMad = store.settings.eurToMad;
   const existingOrder = store.orders.find((entry) => entry.id === recordId);
+  const stockStore = existingOrder
+    ? {
+        ...store,
+        orders: store.orders.filter((entry) => entry.id !== recordId),
+      }
+    : store;
+  const metricsById = getProductMetricsMap(stockStore);
+  const eurToMad = store.settings.eurToMad;
   const items = readItemArray(payload.items).map((item) => {
     const product = findProduct(item.productId, store);
     const qty = requireInteger(item.qty, "Quantité commandée", { min: 1 });
@@ -977,6 +1005,27 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
         lineRevenueMad > 0 ? Number(((lineProfitMad / lineRevenueMad) * 100).toFixed(2)) : 0,
     };
   });
+  const availabilityItems = items.map((item) => ({
+    product: findProduct(item.productId, store),
+    qty: item.qty,
+  }));
+  const hasAvailableStock = (() => {
+    try {
+      ensureStockAvailability(availabilityItems, metricsById, "moroccoStock", "Maroc");
+      return true;
+    } catch (error) {
+      if (error?.status === 400) {
+        return false;
+      }
+
+      throw error;
+    }
+  })();
+  const stockStatus = resolveOrderStockStatus(
+    payload.stockStatus,
+    hasAvailableStock,
+    existingOrder?.stockStatus || "",
+  );
 
   const status = optionalString(payload.status || "confirmee");
 
@@ -1009,6 +1058,7 @@ function buildOrderRecord(payload, store, recordId = createId("ord")) {
     id: recordId,
     orderedAt: toRecordDate(payload.orderedAt),
     status,
+    stockStatus,
     paymentStatus: paymentState.paymentStatus,
     paidAt: paymentState.paidAt,
     carrierName,
@@ -1994,6 +2044,32 @@ app.patch(
     const nextStore = await updateStore((store) => {
       const order = findRecord(store.orders, request.params.orderId, "Commande");
       const nextStatus = optionalString(request.body.status || order.status);
+      const stockStore = {
+        ...store,
+        orders: store.orders.filter((entry) => entry.id !== order.id),
+      };
+      const metricsById = getProductMetricsMap(stockStore);
+      const availabilityItems = (order.items ?? []).map((item) => ({
+        product: findProduct(item.productId, store),
+        qty: item.qty,
+      }));
+      const hasAvailableStock = (() => {
+        try {
+          ensureStockAvailability(availabilityItems, metricsById, "moroccoStock", "Maroc");
+          return true;
+        } catch (error) {
+          if (error?.status === 400) {
+            return false;
+          }
+
+          throw error;
+        }
+      })();
+      const nextStockStatus = resolveOrderStockStatus(
+        request.body.stockStatus,
+        hasAvailableStock,
+        order.stockStatus || "",
+      );
       const nextPaymentStatus = optionalString(
         request.body.paymentStatus || order.paymentStatus,
       );
@@ -2015,10 +2091,12 @@ app.patch(
       });
 
       order.status = nextStatus;
+      order.stockStatus = nextStockStatus;
       order.paymentStatus = paymentState.paymentStatus;
       order.advancePaidMad = paymentState.advancePaidMad;
       order.remainingToPayMad = paymentState.remainingToPayMad;
       order.paidAt = paymentState.paidAt;
+      assertNonNegativeStocks(store);
       return store;
     });
 

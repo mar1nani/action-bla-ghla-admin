@@ -1436,6 +1436,12 @@ select:disabled {
   font-weight: 800;
 }
 
+.summary-note {
+  color: #0f5e8f;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .product-upload-preview {
   display: grid;
   grid-template-columns: 118px minmax(0, 1fr);
@@ -3394,6 +3400,18 @@ button:focus-visible {
   border-color: #caddff;
 }
 
+.status-chip-stock-disponible {
+  color: #0e7c66;
+  background: #e9faf5;
+  border-color: #c8ece0;
+}
+
+.status-chip-precommande {
+  color: #7a4b12;
+  background: #fff3df;
+  border-color: #f0d5a6;
+}
+
 .status-chip-livree {
   color: #0e7c66;
   background: #e9faf5;
@@ -3873,6 +3891,10 @@ body.mobile-sidebar-open .sidebar-backdrop {
 
 #orders-list .table-col-actions {
   width: 214px;
+}
+
+#orders-list .data-table {
+  min-width: 1080px;
 }
 
 #purchases-list .data-table td,

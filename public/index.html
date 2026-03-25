@@ -1040,7 +1040,7 @@
             <article class="panel modal-panel">
               <div class="modal-head">
                 <div>
-                  <p class="eyebrow">Sortie de stock Maroc</p>
+                  <p class="eyebrow">Commande / précommande</p>
                   <h3 id="order-form-title">Nouvelle commande client</h3>
                 </div>
                 <button
@@ -1066,6 +1066,13 @@
                       <option value="confirmee">Confirmée</option>
                       <option value="brouillon">Brouillon</option>
                       <option value="livree">Livrée</option>
+                    </select>
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Stock</span>
+                    <select name="stockStatus">
+                      <option value="stock_disponible">Stock disponible</option>
+                      <option value="precommande">Précommande</option>
                     </select>
                   </label>
                 </div>

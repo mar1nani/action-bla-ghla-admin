@@ -728,6 +728,15 @@ function formatOrderStatusLabel(status) {
   );
 }
 
+function formatOrderStockStatusLabel(status) {
+  return (
+    {
+      stock_disponible: "Stock dispo",
+      precommande: "Précommande",
+    }[status] || "Stock dispo"
+  );
+}
+
 function formatShipmentStatusLabel(status) {
   return (
     {
@@ -757,6 +766,15 @@ function getPaymentStatusChipClass(status) {
       avance: "status-chip-advance",
       non_payee: "status-chip-unpaid",
     }[status] || "status-chip-unpaid"
+  );
+}
+
+function getOrderStockChipClass(status) {
+  return (
+    {
+      stock_disponible: "status-chip-stock-disponible",
+      precommande: "status-chip-precommande",
+    }[status] || "status-chip-stock-disponible"
   );
 }
 
@@ -2374,6 +2392,7 @@ function renderOrders() {
         <col class="table-col-small" />
         <col class="table-col-small" />
         <col class="table-col-small" />
+        <col class="table-col-small" />
         <col class="table-col-actions" />
       </colgroup>
       <thead>
@@ -2381,6 +2400,7 @@ function renderOrders() {
           <th>Date</th>
           <th>Client</th>
           <th>Ville</th>
+          <th>Stock</th>
           <th>Statut</th>
           <th>Paiement</th>
           <th>Total</th>
@@ -2400,6 +2420,18 @@ function renderOrders() {
                   order.customer.phone,
                 )}</td>
                 <td>${escapeHtml(order.customer.city)}</td>
+                <td>
+                  <button
+                    class="status-chip status-chip-button ${escapeHtml(
+                      getOrderStockChipClass(order.stockStatus),
+                    )}"
+                    type="button"
+                    data-order-stock-chip="${escapeHtml(order.id)}"
+                    title="Cliquer pour changer le mode stock"
+                  >
+                    ${escapeHtml(formatOrderStockStatusLabel(order.stockStatus))}
+                  </button>
+                </td>
                 <td>
                   <button
                     class="status-chip status-chip-button ${escapeHtml(
@@ -2902,6 +2934,8 @@ function seedStaticDefaults() {
     refs.orderForm.elements.orderedAt.value || todayInputValue();
   refs.orderForm.elements.paymentStatus.value =
     refs.orderForm.elements.paymentStatus.value || "non_payee";
+  refs.orderForm.elements.stockStatus.value =
+    refs.orderForm.elements.stockStatus.value || "stock_disponible";
   refs.orderForm.elements.carrierName.value = refs.orderForm.elements.carrierName.value || "Achraf";
   refs.orderForm.elements.deliveryPriceMad.value =
     refs.orderForm.elements.deliveryPriceMad.value || "0";
@@ -3392,11 +3426,13 @@ function updateRowHint(row, type) {
   const estimatedRevenue = salePrice * qty;
   const estimatedCost = (product.metrics.avgLandedCostMad || 0) * qty;
   const estimatedProfit = estimatedRevenue - estimatedCost;
+  const preorderHint =
+    qty > Number(product.metrics.moroccoStock || 0) ? " · passe en précommande" : "";
 
   hint.textContent =
     `stock MA ${formatNumber(product.metrics.moroccoStock, 0)} · ` +
     `coût moyen ${formatCurrency(product.metrics.avgLandedCostMad, "MAD")} · ` +
-    `bénéfice estimé ${formatCurrency(estimatedProfit, "MAD")}`;
+    `bénéfice estimé ${formatCurrency(estimatedProfit, "MAD")}${preorderHint}`;
 }
 
 function collectRows(type) {
@@ -3549,8 +3585,86 @@ function syncOrderPaymentFields(trigger = "") {
   advanceField.value = formatInputAmount(advancePaidMad);
 }
 
+function getOrderFormStockAvailability() {
+  const rows = collectRows("order");
+  const availableByProductId = new Map(
+    state.products.map((product) => [product.id, Number(product.metrics?.moroccoStock || 0)]),
+  );
+  const existingOrder =
+    activeOrderEditId
+      ? state.orders.find((order) => order.id === activeOrderEditId) ||
+        ensureTableState("orders").items.find((order) => order.id === activeOrderEditId)
+      : null;
+
+  if (existingOrder && existingOrder.stockStatus !== "precommande") {
+    (existingOrder.items ?? []).forEach((item) => {
+      availableByProductId.set(
+        item.productId,
+        Number((availableByProductId.get(item.productId) || 0) + Number(item.qty || 0)),
+      );
+    });
+  }
+
+  const requestedByProductId = new Map();
+
+  rows.forEach((row) => {
+    const values = getRowValues(row);
+    const productId = values.productId;
+    const qty = Number(values.qty || 0);
+
+    if (!productId || qty <= 0) {
+      return;
+    }
+
+    requestedByProductId.set(productId, (requestedByProductId.get(productId) || 0) + qty);
+  });
+
+  const shortages = [...requestedByProductId.entries()]
+    .map(([productId, requestedQty]) => {
+      const product = getProductById(productId);
+      const availableQty = Number(availableByProductId.get(productId) || 0);
+
+      return {
+        productId,
+        productName: product?.name || "Produit",
+        requestedQty,
+        availableQty,
+      };
+    })
+    .filter((entry) => entry.availableQty < entry.requestedQty);
+
+  return {
+    hasAvailableStock: shortages.length === 0,
+    shortages,
+  };
+}
+
+function syncOrderStockStatusField() {
+  const stockStatusField = refs.orderForm.elements.stockStatus;
+
+  if (!stockStatusField) {
+    return {
+      hasAvailableStock: true,
+      shortages: [],
+    };
+  }
+
+  const availability = getOrderFormStockAvailability();
+
+  if (!stockStatusField.value) {
+    stockStatusField.value = availability.hasAvailableStock ? "stock_disponible" : "precommande";
+  } else if (!availability.hasAvailableStock && stockStatusField.value !== "precommande") {
+    stockStatusField.value = "precommande";
+  }
+
+  stockStatusField.dataset.hasAvailableStock = String(availability.hasAvailableStock);
+  return availability;
+}
+
 function updateOrderSummary() {
   const rows = collectRows("order");
+  const stockStatusField = refs.orderForm.elements.stockStatus;
+  const stockAvailability = syncOrderStockStatusField();
   let totalQty = 0;
   let itemsRevenueMad = 0;
   let costMad = 0;
@@ -3592,6 +3706,13 @@ function updateOrderSummary() {
   const remainingToPayMad = Math.max(customerTotalMad - advancePaidMad, 0);
   const profitMad = itemsRevenueMad - costMad;
   const marginRate = itemsRevenueMad > 0 ? (profitMad / itemsRevenueMad) * 100 : 0;
+  const stockStatus = stockStatusField?.value || "stock_disponible";
+  const stockMessage =
+    stockStatus === "precommande"
+      ? `<p class="summary-warning">Précommande active. Le stock Maroc ne sera pas déduit tant que tu ne passes pas cette commande en stock disponible.</p>`
+      : stockAvailability.hasAvailableStock
+        ? `<p class="summary-note">Le stock Maroc est suffisant. Cette commande réservera les unités disponibles.</p>`
+        : `<p class="summary-warning">Le stock Maroc est insuffisant. La commande est automatiquement basculée en précommande.</p>`;
 
   refs.orderSummary.innerHTML = `
     <div class="summary-line"><span>Total unités</span><strong>${escapeHtml(
@@ -3621,6 +3742,7 @@ function updateOrderSummary() {
     <div class="summary-line"><span>Marge</span><strong>${escapeHtml(
       `${formatNumber(marginRate, 2)}%`,
     )}</strong></div>
+    ${stockMessage}
   `;
 }
 
@@ -3656,6 +3778,7 @@ function resetDynamicForm(form, type) {
     setOrderFormMode();
     form.elements.orderedAt.value = todayInputValue();
     form.elements.status.value = "confirmee";
+    form.elements.stockStatus.value = "stock_disponible";
     form.elements.paymentStatus.value = "non_payee";
     form.elements.carrierName.value = "Achraf";
     form.elements.deliveryPriceMad.value = "0";
@@ -3975,6 +4098,7 @@ function fillDynamicForm(form, type, record) {
     form.elements.orderId.value = record.id;
     form.elements.orderedAt.value = record.orderedAt.slice(0, 10);
     form.elements.status.value = record.status || "confirmee";
+    form.elements.stockStatus.value = record.stockStatus || "stock_disponible";
     form.elements.paymentStatus.value = record.paymentStatus || "non_payee";
     form.elements.carrierName.value = record.carrierName || "Achraf";
     form.elements.deliveryPriceMad.value = record.deliveryPriceMad ?? 0;
@@ -4532,6 +4656,7 @@ async function handleOrderSubmit(event) {
     const payload = {
       orderedAt: form.elements.orderedAt.value,
       status: form.elements.status.value,
+      stockStatus: form.elements.stockStatus.value,
       paymentStatus: form.elements.paymentStatus.value,
       carrierName: form.elements.carrierName.value,
       deliveryPriceMad: Number(form.elements.deliveryPriceMad.value || 0),
@@ -4595,6 +4720,9 @@ function renderOrderDetails(order) {
               ? "status-chip-livree"
               : "status-chip-confirmee"
         }">${escapeHtml(formatOrderStatusLabel(order.status))}</span></p>
+        <p><span class="status-chip ${getOrderStockChipClass(order.stockStatus)}">${escapeHtml(
+          formatOrderStockStatusLabel(order.stockStatus),
+        )}</span></p>
         <p><span class="status-chip ${
           getPaymentStatusChipClass(order.paymentStatus)
         }">${escapeHtml(formatPaymentStatusLabel(order.paymentStatus))}</span></p>
@@ -4727,7 +4855,7 @@ async function handleOrderSummaryUpdate(orderId, payload) {
       body: payload,
     });
     Object.assign(state, result.appState);
-    await refreshTableData(["orders", "available"]);
+    await refreshTableData(["orders", "products", "available"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -4754,6 +4882,10 @@ function getNextOrderStatus(status) {
   return flow[(currentIndex + 1 + flow.length) % flow.length];
 }
 
+function getNextOrderStockStatus(status) {
+  return status === "precommande" ? "stock_disponible" : "precommande";
+}
+
 function getNextShipmentStatus(status) {
   const flow = ["achete", "en_preparation", "envoye", "chez_transporteur", "recu"];
   const currentIndex = flow.indexOf(status);
@@ -4769,6 +4901,18 @@ async function handleOrderStatusCycle(orderId) {
 
   await handleOrderSummaryUpdate(orderId, {
     status: getNextOrderStatus(order.status),
+  });
+}
+
+async function handleOrderStockStatusCycle(orderId) {
+  const order = getTableRecord("orders", orderId);
+
+  if (!order) {
+    return;
+  }
+
+  await handleOrderSummaryUpdate(orderId, {
+    stockStatus: getNextOrderStockStatus(order.stockStatus),
   });
 }
 
@@ -5155,6 +5299,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const orderStockChip = event.target.closest("[data-order-stock-chip]");
+
+  if (orderStockChip) {
+    void handleOrderStockStatusCycle(orderStockChip.dataset.orderStockChip);
+    return;
+  }
+
   const orderPaymentChip = event.target.closest("[data-order-payment-chip]");
 
   if (orderPaymentChip) {
@@ -5266,6 +5417,8 @@ function handleFormInput(event) {
       syncOrderPaymentFields("advancePaidMad");
     } else if (event.target.name === "paymentStatus") {
       syncOrderPaymentFields("paymentStatus");
+    } else if (event.target.name === "stockStatus") {
+      syncOrderStockStatusField();
     }
   }
 
@@ -5290,6 +5443,12 @@ function handleFormInput(event) {
 function handleDocumentChange(event) {
   if (event.target.form === refs.orderForm && event.target.name === "paymentStatus") {
     syncOrderPaymentFields("paymentStatus");
+    updateAllSummaries();
+    return;
+  }
+
+  if (event.target.form === refs.orderForm && event.target.name === "stockStatus") {
+    syncOrderStockStatusField();
     updateAllSummaries();
     return;
   }
