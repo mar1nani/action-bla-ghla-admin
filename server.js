@@ -402,9 +402,10 @@ function buildAvailableProducts(items) {
 function buildPublicCatalogProducts(store) {
   const state = buildAppState(store);
   const transitByProductId = new Map();
+  const visibleShipmentStatuses = new Set(["envoye", "chez_transporteur"]);
 
   for (const shipment of state.shipments ?? []) {
-    if (shipment.status === "recu") {
+    if (!visibleShipmentStatuses.has(shipment.status)) {
       continue;
     }
 
