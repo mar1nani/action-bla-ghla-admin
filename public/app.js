@@ -1589,12 +1589,13 @@ function renderDashboardCards() {
                     .map(
                       (entry) => `
                         <div class="metric-card-duo-item">
-                          <span>${escapeHtml(entry.label)}</span>
-                          ${renderValueWithSubline(
-                            entry.value,
-                            entry.note || "",
-                            "metric-card-duo-value",
-                          )}
+                          <span class="metric-card-duo-label">${escapeHtml(entry.label)}</span>
+                          <strong class="metric-card-duo-primary">${escapeHtml(entry.value)}</strong>
+                          ${
+                            entry.note
+                              ? `<small class="metric-card-duo-note">${escapeHtml(entry.note)}</small>`
+                              : ""
+                          }
                         </div>
                       `,
                     )

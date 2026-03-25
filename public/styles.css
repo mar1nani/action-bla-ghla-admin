@@ -5086,17 +5086,16 @@ body.mobile-sidebar-open .sidebar-backdrop {
 }
 
 .metric-card-duo-item {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 2px;
   padding: 8px 10px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(0, 87, 184, 0.08);
 }
 
-.metric-card-duo-item span {
+.metric-card-duo-item span,
+.metric-card-duo-label {
   color: #6c84a2;
   font-size: 0.76rem;
   font-weight: 800;
@@ -5104,23 +5103,23 @@ body.mobile-sidebar-open .sidebar-backdrop {
   text-transform: uppercase;
 }
 
-.metric-card-duo-value {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
-  text-align: right;
-}
-
-.dashboard-section .metric-card .metric-card-duo-item strong {
-  margin-top: 0;
-  font-size: 1rem;
+.metric-card-duo-primary {
+  display: block;
+  margin-top: 2px;
+  color: #0f2547;
+  font-family: "Sora", sans-serif;
+  font-size: 1.02rem;
   line-height: 1.1;
+  letter-spacing: -0.04em;
 }
 
-.dashboard-section .metric-card .metric-card-duo-value small {
+.metric-card-duo-note {
+  display: block;
+  margin-top: 0;
   color: #6c84a2;
   font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .metric-card-extra {
