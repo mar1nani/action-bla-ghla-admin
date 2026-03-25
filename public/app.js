@@ -1500,8 +1500,17 @@ function renderDashboardCards() {
     },
     {
       label: "Achats",
-      value: formatCurrency(totals.totalPurchaseSpendEur ?? 0, "EUR"),
-      meta: "dépense fournisseur",
+      meta: "dépenses séparées",
+      duo: [
+        {
+          label: "Achats",
+          value: formatCurrency(totals.totalPurchaseSpendEur ?? 0, "EUR"),
+        },
+        {
+          label: "Transporteur",
+          value: formatCurrency(totals.totalShippingSpendEur ?? 0, "EUR"),
+        },
+      ],
     },
     {
       label: "CA ventes",
@@ -1524,7 +1533,24 @@ function renderDashboardCards() {
       (card) => `
         <article class="metric-card">
           <span class="metric-card-label">${escapeHtml(card.label)}</span>
-          <strong>${escapeHtml(card.value)}</strong>
+          ${
+            card.duo?.length
+              ? `
+                <div class="metric-card-duo">
+                  ${card.duo
+                    .map(
+                      (entry) => `
+                        <div class="metric-card-duo-item">
+                          <span>${escapeHtml(entry.label)}</span>
+                          <strong>${escapeHtml(entry.value)}</strong>
+                        </div>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              `
+              : `<strong>${escapeHtml(card.value)}</strong>`
+          }
           <small>${escapeHtml(card.meta)}</small>
           ${
             card.extra?.length
