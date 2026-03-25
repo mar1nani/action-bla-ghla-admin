@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Catalogue client | Action BLA Ghla</title>
+    <meta
+      name="description"
+      content="Découvre les produits disponibles au Maroc, en France et les arrivages en cours."
+    />
+    <link rel="icon" href="/assets/logo-action-bla-ghla.png" />
+    <link rel="apple-touch-icon" href="/assets/logo-action-bla-ghla.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/catalog.css" />
+    <script src="/catalog.js" defer></script>
+  </head>
+  <body>
+    <div class="catalog-bg-orb catalog-bg-orb-a" aria-hidden="true"></div>
+    <div class="catalog-bg-orb catalog-bg-orb-b" aria-hidden="true"></div>
+
+    <header class="catalog-topbar">
+      <div class="catalog-topbar-inner">
+        <a class="catalog-brand" href="/catalogue" aria-label="Retour au catalogue">
+          <img src="/assets/logo-action-bla-ghla.png" alt="Action BLA Ghla" />
+          <div>
+            <strong id="catalog-brand-name">Action BLA Ghla</strong>
+            <span>Catalogue client</span>
+          </div>
+        </a>
+        <div class="catalog-topbar-pill">Mobile-first • Maroc</div>
+      </div>
+    </header>
+
+    <main class="catalog-shell">
+      <section class="catalog-hero">
+        <div class="catalog-hero-copy">
+          <p class="catalog-eyebrow">Sélection premium</p>
+          <h1>Produits disponibles, arrivages en cours et stock France.</h1>
+          <p class="catalog-hero-text">
+            Consulte uniquement le catalogue visible pour les clients : disponible au Maroc,
+            disponible en France, ou déjà en route vers le Maroc.
+          </p>
+        </div>
+        <div id="catalog-summary" class="catalog-summary-grid">
+          <article class="catalog-summary-card">
+            <span>Chargement</span>
+            <strong>...</strong>
+            <small>préparation du catalogue</small>
+          </article>
+        </div>
+      </section>
+
+      <section class="catalog-toolbar-shell">
+        <div class="catalog-toolbar">
+          <label class="catalog-search" aria-label="Rechercher un produit">
+            <span class="catalog-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="6"></circle>
+                <path d="M16 16l5 5"></path>
+              </svg>
+            </span>
+            <input
+              id="catalog-search-input"
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              placeholder="Rechercher un produit"
+            />
+          </label>
+
+          <div class="catalog-filter-row">
+            <div id="catalog-filter-chips" class="catalog-filter-chips" role="tablist"></div>
+            <p id="catalog-filter-meta" class="catalog-filter-meta">Chargement du catalogue...</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="catalog-results">
+        <div id="catalog-grid" class="catalog-grid"></div>
+      </section>
+    </main>
+  </body>
+</html>

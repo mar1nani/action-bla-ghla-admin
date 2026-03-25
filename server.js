@@ -399,6 +399,71 @@ function buildAvailableProducts(items) {
     });
 }
 
+function buildPublicCatalogProducts(store) {
+  const state = buildAppState(store);
+  const transitByProductId = new Map();
+
+  for (const shipment of state.shipments ?? []) {
+    if (shipment.status === "recu") {
+      continue;
+    }
+
+    for (const item of shipment.items ?? []) {
+      transitByProductId.set(
+        item.productId,
+        Number((transitByProductId.get(item.productId) || 0) + Number(item.qty || 0)),
+      );
+    }
+  }
+
+  return state.products
+    .map((product) => {
+      const franceQty = Number(product.metrics?.franceStock || 0);
+      const moroccoQty = Number(product.metrics?.moroccoStock || 0);
+      const transitQty = Number(transitByProductId.get(product.id) || 0);
+      const hasFranceStock = franceQty > 0;
+      const hasMoroccoStock = moroccoQty > 0;
+      const hasTransitStock = transitQty > 0;
+      const visibilityScore =
+        (hasMoroccoStock ? 300000 : 0) +
+        (hasTransitStock ? 200000 : 0) +
+        (hasFranceStock ? 100000 : 0) +
+        moroccoQty * 100 +
+        transitQty * 10 +
+        franceQty;
+
+      return {
+        id: product.id,
+        name: product.name,
+        imageUrl: product.imageUrl || "",
+        notes: product.notes || "",
+        defaultSalePriceMad: Number(product.defaultSalePriceMad || 0),
+        weightKg: Number(product.weightKg || 0),
+        availability: {
+          franceQty,
+          moroccoQty,
+          transitQty,
+          hasFranceStock,
+          hasMoroccoStock,
+          hasTransitStock,
+        },
+        visibilityScore,
+      };
+    })
+    .filter(
+      (product) =>
+        product.availability.hasFranceStock ||
+        product.availability.hasMoroccoStock ||
+        product.availability.hasTransitStock,
+    )
+    .sort(
+      (left, right) =>
+        right.visibilityScore - left.visibilityScore ||
+        left.name.localeCompare(right.name, "fr"),
+    )
+    .map(({ visibilityScore, ...product }) => product);
+}
+
 function readWishlistEntryIds(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -1310,6 +1375,27 @@ app.post("/api/auth/logout", (request, response) => {
   });
 });
 
+app.get(
+  "/api/public/catalog",
+  asyncRoute(async (_request, response) => {
+    const store = await readStore();
+    const products = buildPublicCatalogProducts(store);
+
+    response.json({
+      appName: store.settings?.companyName || "Action BLA Ghla",
+      brandLogoUrl: "/assets/logo-action-bla-ghla.png",
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalProducts: products.length,
+        totalMoroccoReady: products.filter((product) => product.availability.hasMoroccoStock).length,
+        totalTransit: products.filter((product) => product.availability.hasTransitStock).length,
+        totalFranceReady: products.filter((product) => product.availability.hasFranceStock).length,
+      },
+      products,
+    });
+  }),
+);
+
 app.use("/api", requireAuthenticatedApi);
 
 app.get(
@@ -2183,6 +2269,10 @@ app.get(
     );
   }),
 );
+
+app.get(["/catalog", "/catalogue"], (_request, response) => {
+  response.sendFile(path.join(__dirname, "public", "catalog.html"));
+});
 
 app.get("*", (_request, response) => {
   response.sendFile(path.join(__dirname, "public", "index.html"));
