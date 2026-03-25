@@ -251,6 +251,30 @@ input {
   gap: 8px;
 }
 
+.catalog-stock-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(215, 45, 45, 0.1);
+  color: #b51f1f;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.catalog-stock-alert-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #d72d2d;
+  box-shadow: 0 0 0 rgba(215, 45, 45, 0.6);
+  animation: catalog-stock-pulse 1.2s ease-in-out infinite;
+}
+
 .catalog-card-kicker {
   margin: 0;
   color: #6d87a5;
@@ -310,6 +334,26 @@ input {
   margin: 10px 0 0;
   color: var(--catalog-muted);
   line-height: 1.6;
+}
+
+@keyframes catalog-stock-pulse {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(215, 45, 45, 0.44);
+    opacity: 0.92;
+  }
+
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 9px rgba(215, 45, 45, 0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(215, 45, 45, 0);
+    opacity: 0.92;
+  }
 }
 
 @media (min-width: 700px) {

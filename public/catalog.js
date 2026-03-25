@@ -37,6 +37,15 @@ function formatCount(value) {
   return numberFormatter.format(Number(value || 0));
 }
 
+function getVisibleStockTotal(product) {
+  const availability = product.availability || {};
+  return Number(availability.moroccoQty || 0) + Number(availability.franceQty || 0) + Number(availability.transitQty || 0);
+}
+
+function hasLowStock(product) {
+  return getVisibleStockTotal(product) > 0 && getVisibleStockTotal(product) < 3;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -93,6 +102,16 @@ function renderProducts() {
           <div class="catalog-card-body">
             <div class="catalog-card-copy">
               <p class="catalog-card-kicker">Catalogue client</p>
+              ${
+                hasLowStock(product)
+                  ? `
+                    <div class="catalog-stock-alert" aria-label="Stock faible">
+                      <span class="catalog-stock-alert-dot" aria-hidden="true"></span>
+                      <span>Stock faible</span>
+                    </div>
+                  `
+                  : ""
+              }
               <h3>${escapeHtml(product.name)}</h3>
             </div>
             <div class="catalog-card-price-row">
