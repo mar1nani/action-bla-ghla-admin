@@ -24,6 +24,8 @@ const uploadsDirectory = path.join(__dirname, "public", "uploads");
 const app = express();
 const port = process.env.PORT || 3000;
 const SESSION_COOKIE_NAME = "abg_session";
+const CATALOG_VISITOR_COOKIE_NAME = "abg_catalog";
+const ANALYTICS_RETENTION_DAYS = 120;
 const sessions = new Map();
 
 const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
@@ -101,6 +103,129 @@ function createCookie(name, value, options = {}) {
   }
 
   return parts.join("; ");
+}
+
+function appendResponseCookie(response, cookie) {
+  const currentCookie = response.getHeader("Set-Cookie");
+
+  if (!currentCookie) {
+    response.setHeader("Set-Cookie", cookie);
+    return;
+  }
+
+  if (Array.isArray(currentCookie)) {
+    response.setHeader("Set-Cookie", [...currentCookie, cookie]);
+    return;
+  }
+
+  response.setHeader("Set-Cookie", [currentCookie, cookie]);
+}
+
+function getParisDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function shiftDateKey(dateKey, offsetDays) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + offsetDays);
+  return getParisDateKey(date);
+}
+
+function normalizeAnalytics(store) {
+  if (!store.analytics || typeof store.analytics !== "object") {
+    store.analytics = {
+      catalogVisitorsById: {},
+      catalogDaily: [],
+    };
+  }
+
+  if (!store.analytics.catalogVisitorsById || typeof store.analytics.catalogVisitorsById !== "object") {
+    store.analytics.catalogVisitorsById = {};
+  }
+
+  if (!Array.isArray(store.analytics.catalogDaily)) {
+    store.analytics.catalogDaily = [];
+  }
+
+  return store.analytics;
+}
+
+function pruneCatalogAnalytics(analytics, todayKey) {
+  const minimumDateKey = shiftDateKey(todayKey, -ANALYTICS_RETENTION_DAYS + 1);
+
+  analytics.catalogDaily = analytics.catalogDaily
+    .map((entry) => ({
+      date: optionalString(entry?.date),
+      uniqueSessions: Math.max(0, Number(entry?.uniqueSessions || 0)),
+    }))
+    .filter((entry) => entry.date && entry.date >= minimumDateKey)
+    .sort((left, right) => left.date.localeCompare(right.date));
+
+  analytics.catalogVisitorsById = Object.fromEntries(
+    Object.entries(analytics.catalogVisitorsById).filter(
+      ([visitorId, lastSeenDate]) =>
+        optionalString(visitorId) && optionalString(lastSeenDate) >= minimumDateKey,
+    ),
+  );
+}
+
+async function trackCatalogVisit(request, response) {
+  const cookies = parseCookies(request.headers.cookie);
+  const existingVisitorId = cookies[CATALOG_VISITOR_COOKIE_NAME] || "";
+  const visitorId = existingVisitorId || crypto.randomUUID();
+  const todayKey = getParisDateKey();
+
+  if (!existingVisitorId) {
+    appendResponseCookie(
+      response,
+      createCookie(CATALOG_VISITOR_COOKIE_NAME, visitorId, {
+        maxAge: 60 * 60 * 24 * 120,
+      }),
+    );
+  }
+
+  const store = await readStore();
+  const analytics =
+    store.analytics && typeof store.analytics === "object" ? store.analytics : {};
+  const lastSeenDate =
+    analytics.catalogVisitorsById && typeof analytics.catalogVisitorsById === "object"
+      ? optionalString(analytics.catalogVisitorsById[visitorId])
+      : "";
+
+  if (lastSeenDate === todayKey) {
+    return;
+  }
+
+  await updateStore((draft) => {
+    const nextAnalytics = normalizeAnalytics(draft);
+    pruneCatalogAnalytics(nextAnalytics, todayKey);
+
+    if (optionalString(nextAnalytics.catalogVisitorsById[visitorId]) === todayKey) {
+      return draft;
+    }
+
+    nextAnalytics.catalogVisitorsById[visitorId] = todayKey;
+
+    const existingDay = nextAnalytics.catalogDaily.find((entry) => entry.date === todayKey);
+
+    if (existingDay) {
+      existingDay.uniqueSessions = Math.max(0, Number(existingDay.uniqueSessions || 0)) + 1;
+    } else {
+      nextAnalytics.catalogDaily.push({
+        date: todayKey,
+        uniqueSessions: 1,
+      });
+      nextAnalytics.catalogDaily.sort((left, right) => left.date.localeCompare(right.date));
+    }
+
+    pruneCatalogAnalytics(nextAnalytics, todayKey);
+    return draft;
+  });
 }
 
 function getSessionToken(request) {
@@ -2274,9 +2399,13 @@ app.get(
   }),
 );
 
-app.get(["/catalog", "/catalogue"], (_request, response) => {
-  response.sendFile(path.join(__dirname, "public", "catalog.html"));
-});
+app.get(
+  ["/catalog", "/catalogue"],
+  asyncRoute(async (request, response) => {
+    await trackCatalogVisit(request, response);
+    response.sendFile(path.join(__dirname, "public", "catalog.html"));
+  }),
+);
 
 app.get("*", (_request, response) => {
   response.sendFile(path.join(__dirname, "public", "index.html"));

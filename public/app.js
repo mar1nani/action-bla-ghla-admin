@@ -29,11 +29,19 @@ const state = {
     lowStockProducts: [],
     recentActivity: [],
   },
+  analytics: {
+    catalogTraffic: {
+      todaySessions: 0,
+      last7DaysSessions: 0,
+      daily: [],
+    },
+  },
   stats: {
     topSoldProducts: [],
     topProfitProducts: [],
     bestMarginProducts: [],
     topCities: [],
+    catalogTrafficDaily: [],
   },
   tables: {
     products: { items: [], pagination: null },
@@ -194,6 +202,7 @@ const refs = {
   statsTopProfit: document.querySelector("#stats-top-profit"),
   statsBestMargin: document.querySelector("#stats-best-margin"),
   statsTopCities: document.querySelector("#stats-top-cities"),
+  statsCatalogTraffic: document.querySelector("#stats-catalog-traffic"),
   purchaseItems: document.querySelector("#purchase-items"),
   shipmentItems: document.querySelector("#shipment-items"),
   orderItems: document.querySelector("#order-items"),
@@ -1557,6 +1566,14 @@ function renderDashboardCards() {
         `${formatNumber(totals.lowStockCount ?? 0, 0)} alertes stock · ` +
         `À encaisser client ${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")}`,
     },
+    {
+      label: "Catalogue client",
+      value: formatNumber(totals.catalogTodaySessions ?? 0, 0),
+      meta: "sessions uniques aujourd'hui",
+      extra: [
+        `7 jours ${formatNumber(totals.catalogLast7DaysSessions ?? 0, 0)} sessions`,
+      ],
+    },
   ];
 
   refs.dashboardCards.innerHTML = cards
@@ -2739,6 +2756,14 @@ function renderStats() {
     hint: () => "Commandes clients",
     value: (entry) => entry.count,
     format: (entry) => `${formatNumber(entry.count, 0)} commandes`,
+  });
+
+  renderBars(refs.statsCatalogTraffic, state.stats.catalogTrafficDaily ?? [], {
+    emptyLabel: "Aucune visite catalogue suivie pour le moment.",
+    label: (entry) => entry.label,
+    hint: () => "Sessions uniques catalogue",
+    value: (entry) => entry.uniqueSessions,
+    format: (entry) => `${formatNumber(entry.uniqueSessions, 0)} sessions`,
   });
 }
 
@@ -4354,11 +4379,19 @@ function clearProtectedState() {
     lowStockProducts: [],
     recentActivity: [],
   };
+  state.analytics = {
+    catalogTraffic: {
+      todaySessions: 0,
+      last7DaysSessions: 0,
+      daily: [],
+    },
+  };
   state.stats = {
     topSoldProducts: [],
     topProfitProducts: [],
     bestMarginProducts: [],
     topCities: [],
+    catalogTrafficDaily: [],
   };
   state.tables = {
     products: { items: [], pagination: null },
