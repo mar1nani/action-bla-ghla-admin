@@ -17,6 +17,11 @@ const refs = {
   searchInput: document.querySelector("#catalog-search-input"),
   filterMeta: document.querySelector("#catalog-filter-meta"),
   grid: document.querySelector("#catalog-grid"),
+  imageModal: document.querySelector("#catalog-image-modal"),
+  imageModalBackdrop: document.querySelector("#catalog-image-modal-backdrop"),
+  imageModalClose: document.querySelector("#catalog-image-modal-close"),
+  imageModalTitle: document.querySelector("#catalog-image-modal-title"),
+  imageModalImg: document.querySelector("#catalog-image-modal-img"),
 };
 
 function normalizeText(value = "") {
@@ -69,10 +74,41 @@ function getVisibleProducts() {
 
 function renderProductImage(product) {
   if (product.imageUrl) {
-    return `<img src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" />`;
+    return `
+      <button
+        class="catalog-card-image-button"
+        type="button"
+        data-action="open-image"
+        data-image-url="${escapeHtml(product.imageUrl)}"
+        data-image-alt="${escapeHtml(product.name)}"
+        aria-label="Agrandir l'image de ${escapeHtml(product.name)}"
+      >
+        <img src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" />
+      </button>
+    `;
   }
 
   return `<div class="catalog-card-image-fallback">${escapeHtml(product.name.slice(0, 2).toUpperCase())}</div>`;
+}
+
+function openImageModal(imageUrl, imageAlt) {
+  if (!imageUrl) {
+    return;
+  }
+
+  refs.imageModalImg.src = imageUrl;
+  refs.imageModalImg.alt = imageAlt || "";
+  refs.imageModalTitle.textContent = imageAlt || "";
+  refs.imageModal.hidden = false;
+  document.body.classList.add("catalog-modal-open");
+}
+
+function closeImageModal() {
+  refs.imageModal.hidden = true;
+  refs.imageModalImg.src = "";
+  refs.imageModalImg.alt = "";
+  refs.imageModalTitle.textContent = "";
+  document.body.classList.remove("catalog-modal-open");
 }
 
 function renderProducts() {
@@ -150,6 +186,25 @@ function bindEvents() {
   refs.searchInput.addEventListener("input", (event) => {
     state.search = event.currentTarget.value || "";
     renderProducts();
+  });
+
+  refs.grid.addEventListener("click", (event) => {
+    const trigger = event.target.closest('[data-action="open-image"]');
+
+    if (!trigger) {
+      return;
+    }
+
+    openImageModal(trigger.dataset.imageUrl || "", trigger.dataset.imageAlt || "");
+  });
+
+  refs.imageModalBackdrop.addEventListener("click", closeImageModal);
+  refs.imageModalClose.addEventListener("click", closeImageModal);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !refs.imageModal.hidden) {
+      closeImageModal();
+    }
   });
 }
 

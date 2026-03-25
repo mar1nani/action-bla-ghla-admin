@@ -62,5 +62,28 @@
         <div id="catalog-grid" class="catalog-grid"></div>
       </section>
     </main>
+
+    <div id="catalog-image-modal" class="catalog-image-modal" hidden>
+      <button
+        id="catalog-image-modal-backdrop"
+        class="catalog-image-modal-backdrop"
+        type="button"
+        aria-label="Fermer l'image"
+      ></button>
+      <div class="catalog-image-modal-panel" role="dialog" aria-modal="true" aria-labelledby="catalog-image-modal-title">
+        <button
+          id="catalog-image-modal-close"
+          class="catalog-image-modal-close"
+          type="button"
+          aria-label="Fermer"
+        >
+          ×
+        </button>
+        <p id="catalog-image-modal-title" class="catalog-image-modal-title"></p>
+        <div class="catalog-image-modal-frame">
+          <img id="catalog-image-modal-img" src="" alt="" />
+        </div>
+      </div>
+    </div>
   </body>
 </html>
