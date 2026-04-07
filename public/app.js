@@ -1554,10 +1554,17 @@ function renderDashboardCards() {
     },
     {
       label: "CA ventes",
-      value: formatCurrency(totals.totalRevenueMad ?? 0, "MAD"),
-      meta:
-        `${formatNumber(totals.totalOrders ?? 0, 0)} commandes · ` +
-        `${formatNumber(totals.totalPaidOrders ?? 0, 0)} payées · hors transport`,
+      meta: "hors transport, avec et sans impayés",
+      duo: [
+        {
+          label: "Avec impayés",
+          value: formatCurrency(totals.totalRevenueWithUnpaidMad ?? 0, "MAD"),
+        },
+        {
+          label: "Sans impayés",
+          value: formatCurrency(totals.totalRevenueMad ?? 0, "MAD"),
+        },
+      ],
     },
     {
       label: "Bénéfice",
