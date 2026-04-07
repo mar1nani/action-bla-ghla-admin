@@ -1581,20 +1581,6 @@ function renderDashboardCards() {
       ],
     },
     {
-      label: "Écart approx.",
-      meta: "achats + transport - CA ventes",
-      duo: [
-        {
-          label: "Avec impayés",
-          value: formatCurrency(totals.totalApproxDifferenceWithUnpaidMad ?? 0, "MAD"),
-        },
-        {
-          label: "Sans impayés",
-          value: formatCurrency(totals.totalApproxDifferenceWithoutUnpaidMad ?? 0, "MAD"),
-        },
-      ],
-    },
-    {
       label: "Impayé",
       value: formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD"),
       meta:
