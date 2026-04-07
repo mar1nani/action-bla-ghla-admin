@@ -1557,14 +1557,21 @@ function renderDashboardCards() {
       value: formatCurrency(totals.totalRevenueMad ?? 0, "MAD"),
       meta:
         `${formatNumber(totals.totalOrders ?? 0, 0)} commandes · ` +
-        `${formatNumber(totals.totalPaidOrders ?? 0, 0)} payées`,
+        `${formatNumber(totals.totalPaidOrders ?? 0, 0)} payées · hors transport`,
     },
     {
       label: "Bénéfice",
-      value: formatCurrency(totals.totalProfitMad ?? 0, "MAD"),
-      meta:
-        `${formatNumber(totals.lowStockCount ?? 0, 0)} alertes stock · ` +
-        `À encaisser client ${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")}`,
+      meta: "avec et sans commandes impayées",
+      duo: [
+        {
+          label: "Avec impayés",
+          value: formatCurrency(totals.totalProfitMad ?? 0, "MAD"),
+        },
+        {
+          label: "Sans impayés",
+          value: formatCurrency(totals.totalProfitWithoutUnpaidMad ?? 0, "MAD"),
+        },
+      ],
     },
     {
       label: "Impayé",
@@ -1629,6 +1636,10 @@ function renderDashboardCards() {
 }
 
 function renderLowStock() {
+  if (!refs.lowStockList) {
+    return;
+  }
+
   const products = state.dashboard.lowStockProducts ?? [];
 
   if (!products.length) {
