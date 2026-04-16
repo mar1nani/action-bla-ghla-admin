@@ -1422,7 +1422,7 @@ app.use((request, _response, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/health", (_request, response) => {
