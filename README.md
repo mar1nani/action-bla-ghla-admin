@@ -27,6 +27,7 @@ Copie `.env.example` si tu veux preparer un mode production:
 
 ```bash
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+ALLOW_LOCAL_STORE_FALLBACK=true
 PORT=3000
 ```
 
@@ -38,6 +39,8 @@ Si `DATABASE_URL` est present:
 - l'application utilise Neon Postgres avec une table `app_store`
 - les images sont enregistrees dans la base pour etre compatibles avec Render
 - au premier lancement, le contenu local existant est importe automatiquement vers la base
+- si la base distante tombe, l'application peut temporairement basculer sur le JSON local
+  si `ALLOW_LOCAL_STORE_FALLBACK=true`
 
 ## Ce qui est deja implemente
 

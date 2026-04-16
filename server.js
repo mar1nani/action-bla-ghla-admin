@@ -16,7 +16,13 @@ import {
   toRecordDate,
 } from "./lib/metrics.js";
 import { renderInvoiceHtml } from "./lib/invoice-template.js";
-import { createId, isDatabaseStoreEnabled, readStore, updateStore } from "./lib/store.js";
+import {
+  createId,
+  getStoreStatus,
+  isDatabaseStoreEnabled,
+  readStore,
+  updateStore,
+} from "./lib/store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1424,6 +1430,7 @@ app.get("/api/health", (_request, response) => {
     status: "ok",
     app: "action-bla-ghla-admin",
     stack: "node-express-static",
+    storage: getStoreStatus(),
     timestamp: new Date().toISOString(),
   });
 });
