@@ -52,6 +52,12 @@ function asyncRoute(handler) {
   };
 }
 
+function createServiceUnavailableError(message) {
+  const error = new Error(message);
+  error.status = 503;
+  return error;
+}
+
 function sanitizeUser(user) {
   if (!user) {
     return null;
@@ -76,6 +82,20 @@ function sanitizeManagedUser(user) {
     displayName: user.displayName,
     canManageUsers: canManageUsers(user),
     createdAt: user.createdAt || null,
+  };
+}
+
+function getAuthRecoveryState(storeStatus, store) {
+  const authUnavailable =
+    storeStatus.configuredDatabase &&
+    storeStatus.mode === "local-fallback" &&
+    store.users.length === 0;
+
+  return {
+    authUnavailable,
+    authMessage: authUnavailable
+      ? "La base principale est temporairement indisponible. Réessaie dans quelques instants."
+      : "",
   };
 }
 
@@ -1439,11 +1459,15 @@ app.get(
   "/api/auth/session",
   asyncRoute(async (request, response) => {
     const store = await readStore();
+    const storeStatus = getStoreStatus();
     const user = getAuthenticatedUser(request, store);
+    const authRecoveryState = getAuthRecoveryState(storeStatus, store);
 
     response.json({
       isAuthenticated: Boolean(user),
-      requiresSetup: store.users.length === 0,
+      requiresSetup: !authRecoveryState.authUnavailable && store.users.length === 0,
+      authUnavailable: authRecoveryState.authUnavailable,
+      authMessage: authRecoveryState.authMessage,
       user: sanitizeUser(user),
     });
   }),
@@ -1452,6 +1476,13 @@ app.get(
 app.post(
   "/api/auth/setup",
   asyncRoute(async (request, response) => {
+    const currentStore = await readStore();
+    const authRecoveryState = getAuthRecoveryState(getStoreStatus(), currentStore);
+
+    if (authRecoveryState.authUnavailable) {
+      throw createServiceUnavailableError(authRecoveryState.authMessage);
+    }
+
     const nextStore = await updateStore((store) => {
       if (store.users.length > 0) {
         throw createValidationError("Un compte existe déjà. Connecte-toi.");
@@ -1488,6 +1519,12 @@ app.post(
   "/api/auth/login",
   asyncRoute(async (request, response) => {
     const store = await readStore();
+    const authRecoveryState = getAuthRecoveryState(getStoreStatus(), store);
+
+    if (authRecoveryState.authUnavailable) {
+      throw createServiceUnavailableError(authRecoveryState.authMessage);
+    }
+
     const login = requireString(request.body.login, "Identifiant").toLowerCase();
     const password = requireString(request.body.password, "Mot de passe");
     const user = store.users.find((entry) => entry.login === login);

@@ -15,6 +15,8 @@ const state = {
   auth: {
     isAuthenticated: false,
     requiresSetup: false,
+    authUnavailable: false,
+    authMessage: "",
     user: null,
   },
   settings: {},
@@ -266,6 +268,7 @@ const refs = {
   setupForm: document.querySelector("#setup-form"),
   loginFormError: document.querySelector("#login-form-error"),
   setupFormError: document.querySelector("#setup-form-error"),
+  authNotice: document.querySelector("#auth-notice"),
 };
 
 const MODAL_TO_FORM_TYPE = {
@@ -1003,6 +1006,7 @@ function clearAllFormMessages() {
     refs.personnelFormError,
     refs.loginFormError,
     refs.setupFormError,
+    refs.authNotice,
   ].forEach((element) => setInlineMessage(element));
 }
 
@@ -1036,14 +1040,21 @@ function updateAuthUI() {
   }
 
   if (!isAuthenticated) {
-    refs.authTitle.textContent = state.auth.requiresSetup
+    const authUnavailable = Boolean(state.auth.authUnavailable);
+
+    refs.authTitle.textContent = authUnavailable
+      ? "Connexion temporairement indisponible"
+      : state.auth.requiresSetup
       ? "Créer le premier compte"
       : "Connexion";
-    refs.authSubtitle.textContent = state.auth.requiresSetup
+    refs.authSubtitle.textContent = authUnavailable
+      ? "La connexion reviendra dès que la base principale sera de nouveau accessible."
+      : state.auth.requiresSetup
       ? "Définis le premier accès sécurisé pour l’application."
       : "Connecte-toi pour accéder au tableau de bord.";
-    refs.setupForm.hidden = !state.auth.requiresSetup;
-    refs.loginForm.hidden = state.auth.requiresSetup;
+    setInlineMessage(refs.authNotice, authUnavailable ? state.auth.authMessage : "");
+    refs.setupForm.hidden = authUnavailable || !state.auth.requiresSetup;
+    refs.loginForm.hidden = authUnavailable || state.auth.requiresSetup;
   }
 }
 
@@ -1051,6 +1062,8 @@ function applySessionState(payload) {
   state.auth = {
     isAuthenticated: Boolean(payload.isAuthenticated),
     requiresSetup: Boolean(payload.requiresSetup),
+    authUnavailable: Boolean(payload.authUnavailable),
+    authMessage: payload.authMessage || "",
     user: payload.user || null,
   };
   updateAuthUI();
