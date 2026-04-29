@@ -5052,8 +5052,24 @@ async function handleOrderStockStatusCycle(orderId) {
     return;
   }
 
+  const nextStockStatus = getNextOrderStockStatus(order.stockStatus);
+  const isMovingToAvailable = nextStockStatus === "stock_disponible";
+  const confirmed = await openConfirmDialog({
+    title: isMovingToAvailable
+      ? "Passer cette précommande en stock disponible ?"
+      : "Repasser cette commande en précommande ?",
+    message: isMovingToAvailable
+      ? "Le stock Maroc sera déduit immédiatement pour cette commande."
+      : "Le stock Maroc sera libéré et la commande repassera en précommande.",
+    confirmLabel: isMovingToAvailable ? "Passer en stock disponible" : "Repasser en précommande",
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
   await handleOrderSummaryUpdate(orderId, {
-    stockStatus: getNextOrderStockStatus(order.stockStatus),
+    stockStatus: nextStockStatus,
   });
 }
 

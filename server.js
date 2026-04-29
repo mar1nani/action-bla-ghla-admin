@@ -2320,6 +2320,7 @@ app.delete(
 app.patch(
   "/api/orders/:orderId/summary",
   asyncRoute(async (request, response) => {
+    const requestedStockStatus = optionalString(request.body.stockStatus);
     const nextStore = await updateStore((store) => {
       const order = findRecord(store.orders, request.params.orderId, "Commande");
       const nextStatus = optionalString(request.body.status || order.status);
@@ -2379,8 +2380,16 @@ app.patch(
       return store;
     });
 
+    let message = "Commande mise à jour.";
+
+    if (requestedStockStatus === "stock_disponible") {
+      message = "Commande passée en stock disponible. Le stock Maroc a été déduit.";
+    } else if (requestedStockStatus === "precommande") {
+      message = "Commande repassée en précommande. Le stock Maroc a été libéré.";
+    }
+
     response.json({
-      message: "Commande mise à jour.",
+      message,
       appState: buildPublicState(nextStore, request),
     });
   }),
