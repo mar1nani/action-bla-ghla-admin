@@ -553,6 +553,7 @@ function buildAvailableProducts(items) {
 function buildPublicCatalogProducts(store) {
   const state = buildAppState(store);
   const transitByProductId = new Map();
+  const reservedPreorderByProductId = new Map();
   const visibleShipmentStatuses = new Set(["envoye", "chez_transporteur"]);
 
   for (const shipment of state.shipments ?? []) {
@@ -568,11 +569,30 @@ function buildPublicCatalogProducts(store) {
     }
   }
 
+  for (const order of state.orders ?? []) {
+    if (order.stockStatus !== "precommande") {
+      continue;
+    }
+
+    for (const item of order.items ?? []) {
+      reservedPreorderByProductId.set(
+        item.productId,
+        Number((reservedPreorderByProductId.get(item.productId) || 0) + Number(item.qty || 0)),
+      );
+    }
+  }
+
   return state.products
     .map((product) => {
-      const franceQty = Number(product.metrics?.franceStock || 0);
+      const rawFranceQty = Number(product.metrics?.franceStock || 0);
       const moroccoQty = Number(product.metrics?.moroccoStock || 0);
-      const transitQty = Number(transitByProductId.get(product.id) || 0);
+      const rawTransitQty = Number(transitByProductId.get(product.id) || 0);
+      let reservedQty = Number(reservedPreorderByProductId.get(product.id) || 0);
+
+      const transitQty = Math.max(rawTransitQty - reservedQty, 0);
+      reservedQty = Math.max(reservedQty - rawTransitQty, 0);
+
+      const franceQty = Math.max(rawFranceQty - reservedQty, 0);
       const hasFranceStock = franceQty > 0;
       const hasMoroccoStock = moroccoQty > 0;
       const hasTransitStock = transitQty > 0;
