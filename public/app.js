@@ -1594,6 +1594,16 @@ function renderDashboardCards() {
       ],
     },
     {
+      label: "Bénéfice vendus + impayés",
+      value: formatCurrency(totals.totalSoldProductsProfitWithUnpaidMad ?? 0, "MAD"),
+      meta: "produits vendus uniquement",
+    },
+    {
+      label: "Bénéfice vendus sans impayés",
+      value: formatCurrency(totals.totalSoldProductsProfitWithoutUnpaidMad ?? 0, "MAD"),
+      meta: "produits vendus et réglés",
+    },
+    {
       label: "Impayé",
       value: formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD"),
       meta:
