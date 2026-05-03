@@ -2930,7 +2930,7 @@ function renderEmptyState(message) {
 function updateProductImagePreview({
   src = "",
   title = "Aucune photo sélectionnée",
-  meta = "Choisis une image depuis ton appareil pour la compresser en WebP.",
+  meta = "Choisis une image depuis ton appareil pour l’optimiser automatiquement.",
   loading = false,
 } = {}) {
   refs.productImagePreview.classList.toggle("is-empty", !src && !loading);
@@ -2972,11 +2972,17 @@ function resetPurchaseInvoiceSelection() {
 }
 
 function getProductImageDisplayName(productName = "", fallback = "photo-produit.webp") {
+  const extension = fallback.split(".").pop() || "webp";
   const cleanedName = String(productName ?? "")
     .trim()
     .replace(/\s+/g, " ");
 
-  return cleanedName ? `${cleanedName}.webp` : fallback;
+  return cleanedName ? `${cleanedName}.${extension}` : fallback;
+}
+
+function getImageFormatLabel(mimeType = "image/webp") {
+  const subtype = String(mimeType).split("/")[1] || "image";
+  return subtype.replace("jpeg", "jpg").toUpperCase();
 }
 
 function syncPendingProductImageLabel() {
@@ -3047,7 +3053,7 @@ async function compressImageUpload(file, fallbackFileName = "image", options = {
     canvas.toBlob(
       (nextBlob) => {
         if (!nextBlob) {
-          reject(new Error("La compression WebP a échoué."));
+          reject(new Error("L’optimisation de l’image a échoué."));
           return;
         }
 
@@ -3063,10 +3069,13 @@ async function compressImageUpload(file, fallbackFileName = "image", options = {
   }
 
   const dataUrl = await blobToDataUrl(blob);
+  const mimeType = blob.type || "image/webp";
+  const extension = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "webp";
 
   return {
     dataUrl,
-    fileName: `${file.name.replace(/\.[^.]+$/, "") || fallbackFileName}.webp`,
+    mimeType,
+    fileName: `${file.name.replace(/\.[^.]+$/, "") || fallbackFileName}.${extension}`,
     width: targetWidth,
     height: targetHeight,
     sizeKb: Math.max(1, Math.round(blob.size / 1024)),
@@ -4392,7 +4401,7 @@ async function handleProductImageChange(event) {
 
   updateProductImagePreview({
     title: file.name,
-    meta: "Compression WebP en cours...",
+    meta: "Optimisation image en cours...",
     loading: true,
   });
 
@@ -4416,7 +4425,7 @@ async function handleProductImageChange(event) {
     updateProductImagePreview({
       src: namedUpload.dataUrl,
       title: namedUpload.fileName,
-      meta: `${namedUpload.width} x ${namedUpload.height} px · ${namedUpload.sizeKb} Ko · WebP`,
+      meta: `${namedUpload.width} x ${namedUpload.height} px · ${namedUpload.sizeKb} Ko · ${getImageFormatLabel(namedUpload.mimeType)}`,
     });
   } catch (error) {
     if (version !== productImageVersion) {
@@ -4464,7 +4473,7 @@ async function handlePurchaseInvoiceChange(event) {
     updatePurchaseInvoicePreview({
       src: upload.dataUrl,
       title: upload.fileName,
-      meta: `${upload.width} x ${upload.height} px · ${upload.sizeKb} Ko · WebP`,
+      meta: `${upload.width} x ${upload.height} px · ${upload.sizeKb} Ko · ${getImageFormatLabel(upload.mimeType)}`,
     });
   } catch (error) {
     if (version !== purchaseInvoiceVersion) {

@@ -755,7 +755,56 @@ function buildProductImageFileName(productName, productId) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  return `${slug || "produit"}-${productId}.webp`;
+  return `${slug || "produit"}-${productId}`;
+}
+
+const SUPPORTED_IMAGE_UPLOADS = {
+  "image/webp": "webp",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+
+function parseImageUploadData(upload, label, { required = true, maxBase64Length = 6_000_000 } = {}) {
+  if (!upload?.dataUrl) {
+    if (required) {
+      throw createValidationError(`Ajoute ${label}.`);
+    }
+
+    return null;
+  }
+
+  if (typeof upload.dataUrl !== "string") {
+    throw createValidationError(`Le format de ${label} est invalide.`);
+  }
+
+  const match = upload.dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+
+  if (!match) {
+    throw createValidationError(`Le format de ${label} est invalide.`);
+  }
+
+  const mimeType = match[1].toLowerCase();
+  const extension = SUPPORTED_IMAGE_UPLOADS[mimeType];
+
+  if (!extension) {
+    throw createValidationError(
+      `${label.charAt(0).toUpperCase() + label.slice(1)} doit être en JPG, PNG, GIF, AVIF ou WebP.`,
+    );
+  }
+
+  if (match[2].length > maxBase64Length) {
+    throw createValidationError(`${label.charAt(0).toUpperCase() + label.slice(1)} compressée reste trop lourde.`);
+  }
+
+  return {
+    dataUrl: upload.dataUrl,
+    base64: match[2],
+    mimeType,
+    extension,
+  };
 }
 
 async function syncStoredProductImageName(product) {
@@ -763,7 +812,8 @@ async function syncStoredProductImageName(product) {
     return;
   }
 
-  const nextFileName = buildProductImageFileName(product.name, product.id);
+  const currentExtension = path.extname(product.imageUrl).replace(/^\./, "") || "webp";
+  const nextFileName = `${buildProductImageFileName(product.name, product.id)}.${currentExtension}`;
   const nextRelativePath = `/uploads/${nextFileName}`;
 
   if (product.imageUrl === nextRelativePath) {
@@ -786,35 +836,26 @@ async function syncStoredProductImageName(product) {
 }
 
 async function persistProductImage(upload, productId, productName, currentImageUrl = "") {
-  if (!upload?.dataUrl) {
+  const parsedUpload = parseImageUploadData(upload, "la photo produit", {
+    required: false,
+    maxBase64Length: 6_000_000,
+  });
+
+  if (!parsedUpload) {
     return "";
   }
 
-  if (typeof upload.dataUrl !== "string") {
-    throw createValidationError("Le format de la photo produit est invalide.");
-  }
-
-  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
-
-  if (!match) {
-    throw createValidationError("La photo doit être convertie en WebP avant envoi.");
-  }
-
-  if (match[1].length > 6_000_000) {
-    throw createValidationError("La photo compressée reste trop lourde.");
-  }
-
   if (isDatabaseStoreEnabled()) {
-    return upload.dataUrl;
+    return parsedUpload.dataUrl;
   }
 
   await fs.mkdir(uploadsDirectory, { recursive: true });
 
-  const fileName = buildProductImageFileName(productName, productId);
+  const fileName = `${buildProductImageFileName(productName, productId)}.${parsedUpload.extension}`;
   const relativePath = `/uploads/${fileName}`;
   const filePath = path.join(uploadsDirectory, fileName);
 
-  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+  await fs.writeFile(filePath, Buffer.from(parsedUpload.base64, "base64"));
 
   if (currentImageUrl && currentImageUrl.startsWith("/uploads/") && currentImageUrl !== relativePath) {
     await removeProductImage(currentImageUrl);
@@ -824,36 +865,25 @@ async function persistProductImage(upload, productId, productName, currentImageU
 }
 
 async function persistPurchaseInvoiceImage(upload, purchaseId) {
-  if (!upload?.dataUrl) {
+  const parsedUpload = parseImageUploadData(upload, "la photo de facture", {
+    required: false,
+    maxBase64Length: 6_000_000,
+  });
+
+  if (!parsedUpload) {
     return "";
   }
 
-  if (typeof upload.dataUrl !== "string") {
-    throw createValidationError("Le format de la photo de facture est invalide.");
-  }
-
-  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
-
-  if (!match) {
-    throw createValidationError(
-      "La photo de facture doit être convertie en WebP avant envoi.",
-    );
-  }
-
-  if (match[1].length > 6_000_000) {
-    throw createValidationError("La photo de facture compressée reste trop lourde.");
-  }
-
   if (isDatabaseStoreEnabled()) {
-    return upload.dataUrl;
+    return parsedUpload.dataUrl;
   }
 
   await fs.mkdir(uploadsDirectory, { recursive: true });
 
-  const relativePath = `/uploads/${purchaseId}-invoice.webp`;
-  const filePath = path.join(uploadsDirectory, `${purchaseId}-invoice.webp`);
+  const relativePath = `/uploads/${purchaseId}-invoice.${parsedUpload.extension}`;
+  const filePath = path.join(uploadsDirectory, `${purchaseId}-invoice.${parsedUpload.extension}`);
 
-  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+  await fs.writeFile(filePath, Buffer.from(parsedUpload.base64, "base64"));
 
   return relativePath;
 }
@@ -877,33 +907,20 @@ async function removeProductImage(imageUrl) {
 }
 
 async function persistGalleryImage(upload, galleryItemId) {
-  if (!upload?.dataUrl) {
-    throw createValidationError("Ajoute une photo pour la galerie.");
-  }
-
-  if (typeof upload.dataUrl !== "string") {
-    throw createValidationError("Le format de la photo galerie est invalide.");
-  }
-
-  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
-
-  if (!match) {
-    throw createValidationError("La photo galerie doit être convertie en WebP avant envoi.");
-  }
-
-  if (match[1].length > 4_000_000) {
-    throw createValidationError("La photo galerie compressée reste trop lourde.");
-  }
+  const parsedUpload = parseImageUploadData(upload, "la photo galerie", {
+    required: true,
+    maxBase64Length: 4_000_000,
+  });
 
   if (isDatabaseStoreEnabled()) {
-    return upload.dataUrl;
+    return parsedUpload.dataUrl;
   }
 
   await fs.mkdir(uploadsDirectory, { recursive: true });
 
-  const relativePath = `/uploads/gallery-${galleryItemId}.webp`;
-  const filePath = path.join(uploadsDirectory, `gallery-${galleryItemId}.webp`);
-  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+  const relativePath = `/uploads/gallery-${galleryItemId}.${parsedUpload.extension}`;
+  const filePath = path.join(uploadsDirectory, `gallery-${galleryItemId}.${parsedUpload.extension}`);
+  await fs.writeFile(filePath, Buffer.from(parsedUpload.base64, "base64"));
   return relativePath;
 }
 
