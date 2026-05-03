@@ -48,6 +48,7 @@ const state = {
   tables: {
     products: { items: [], pagination: null },
     wishlist: { items: [], pagination: null },
+    gallery: { items: [], pagination: null },
     available: { items: [], pagination: null },
     purchases: { items: [], pagination: null },
     shipments: { items: [], pagination: null },
@@ -117,6 +118,10 @@ const PAGE_CONFIG = {
   wishlist: {
     path: "/wishlist",
     documentTitle: "Wishlist",
+  },
+  gallery: {
+    path: "/wishlist-gallery",
+    documentTitle: "Wishlist Gallery",
   },
   available: {
     path: "/available-stock",
@@ -189,6 +194,10 @@ const refs = {
   productsPagination: document.querySelector("#products-pagination"),
   wishlistTable: document.querySelector("#wishlist-table"),
   wishlistPagination: document.querySelector("#wishlist-pagination"),
+  galleryTable: document.querySelector("#gallery-table"),
+  galleryPagination: document.querySelector("#gallery-pagination"),
+  galleryUploadInput: document.querySelector("#gallery-upload-input"),
+  galleryUploadButton: document.querySelector("#gallery-upload-button"),
   availableGrid: document.querySelector("#available-grid"),
   availablePagination: document.querySelector("#available-pagination"),
   productsCreatePurchaseButton: document.querySelector("#products-create-purchase-button"),
@@ -281,6 +290,7 @@ const MODAL_TO_FORM_TYPE = {
 const TABLE_ENDPOINTS = {
   products: "/api/products",
   wishlist: "/api/wishlist",
+  gallery: "/api/gallery-items",
   available: "/api/available-products",
   purchases: "/api/purchases",
   shipments: "/api/shipments",
@@ -1213,7 +1223,7 @@ function resetAllTableFilters() {
 function buildTableQuery(tableKey, page = 1) {
   const params = new URLSearchParams();
 
-  if (tableKey !== "wishlist") {
+  if (tableKey !== "wishlist" && tableKey !== "gallery") {
     params.set("page", String(page));
     params.set("pageSize", String(TABLE_PAGE_SIZES[tableKey] || 10));
   }
@@ -2185,6 +2195,61 @@ function renderWishlistTable() {
   `;
 }
 
+function renderGalleryTable() {
+  if (!refs.galleryTable || !refs.galleryPagination) {
+    return;
+  }
+
+  const items = ensureTableState("gallery").items;
+  refs.galleryPagination.hidden = true;
+  refs.galleryPagination.innerHTML = "";
+
+  if (!items.length) {
+    refs.galleryTable.innerHTML = renderEmptyState(
+      "Aucune photo dans la galerie pour le moment.",
+    );
+    return;
+  }
+
+  refs.galleryTable.innerHTML = `
+    <div class="gallery-grid">
+      ${items
+        .map(
+          (item) => `
+            <article class="gallery-card">
+              ${renderProductThumb({
+                imageUrl: item.imageUrl,
+                label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
+                className: "gallery-card-thumb",
+                fallback: "WG",
+                button: true,
+              })}
+              <div class="gallery-card-copy">
+                <p>${escapeHtml(item.createdByName || item.createdByLogin || "Équipe")}</p>
+                <small>${escapeHtml(formatDate(item.createdAt))}</small>
+                <small>${escapeHtml(
+                  `${formatNumber(item.width || 0, 0)} × ${formatNumber(item.height || 0, 0)} · ${formatNumber(item.sizeKb || 0, 0)} Ko`,
+                )}</small>
+              </div>
+              <div class="gallery-card-actions">
+                <button
+                  class="ghost-button table-action-button table-icon-delete"
+                  type="button"
+                  data-gallery-delete="${escapeHtml(item.id)}"
+                  aria-label="Supprimer cette photo"
+                  title="Supprimer"
+                >
+                  ${renderIcon("delete")}
+                </button>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderAvailableProducts() {
   if (!refs.availableGrid || !refs.availablePagination) {
     return;
@@ -2921,14 +2986,14 @@ function blobToDataUrl(blob) {
   });
 }
 
-async function compressImageUpload(file, fallbackFileName = "image") {
+async function compressImageUpload(file, fallbackFileName = "image", options = {}) {
   if (!file.type.startsWith("image/")) {
     throw new Error("Choisis un fichier image valide.");
   }
 
   const source =
     "createImageBitmap" in window ? await createImageBitmap(file) : await loadImageFromFile(file);
-  const maxDimension = 1400;
+  const maxDimension = Math.max(120, Number(options.maxDimension || 1400));
   const scale = Math.min(1, maxDimension / Math.max(source.width, source.height));
   const targetWidth = Math.max(1, Math.round(source.width * scale));
   const targetHeight = Math.max(1, Math.round(source.height * scale));
@@ -2956,7 +3021,7 @@ async function compressImageUpload(file, fallbackFileName = "image") {
         resolve(nextBlob);
       },
       "image/webp",
-      0.82,
+      Math.min(0.95, Math.max(0.3, Number(options.quality ?? 0.82))),
     );
   });
 
@@ -2984,6 +3049,7 @@ function renderAll() {
   renderActivity();
   renderProductsTable();
   renderWishlistTable();
+  renderGalleryTable();
   renderAvailableProducts();
   renderPurchases();
   renderShipments();
@@ -4701,6 +4767,77 @@ async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
   }
 }
 
+async function handleGalleryUpload(event) {
+  const files = [...(event.target.files ?? [])];
+
+  if (!files.length) {
+    return;
+  }
+
+  if (refs.galleryUploadButton) {
+    refs.galleryUploadButton.disabled = true;
+  }
+
+  try {
+    for (const file of files) {
+      const upload = await compressImageUpload(file, "wishlist-gallery", {
+        maxDimension: 900,
+        quality: 0.68,
+      });
+      const result = await apiRequest("/api/gallery-items", {
+        method: "POST",
+        body: {
+          imageUpload: upload,
+          width: upload.width,
+          height: upload.height,
+          sizeKb: upload.sizeKb,
+        },
+      });
+      Object.assign(state, result.appState);
+    }
+
+    await refreshTableData(["gallery"]);
+    showFlash(
+      files.length > 1
+        ? `${formatNumber(files.length, 0)} photos ajoutées à la galerie.`
+        : "Photo ajoutée à la galerie.",
+    );
+  } catch (error) {
+    showFlash(error.message, "error");
+  } finally {
+    if (refs.galleryUploadInput) {
+      refs.galleryUploadInput.value = "";
+    }
+
+    if (refs.galleryUploadButton) {
+      refs.galleryUploadButton.disabled = false;
+    }
+  }
+}
+
+async function handleGalleryDelete(galleryItemId) {
+  const confirmed = await openConfirmDialog({
+    title: "Supprimer cette photo ?",
+    message: "La photo sera retirée définitivement de la galerie.",
+    confirmLabel: "Supprimer la photo",
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
+      method: "DELETE",
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["gallery"]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
 async function handlePurchaseSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -5348,6 +5485,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const galleryDeleteButton = event.target.closest("[data-gallery-delete]");
+
+  if (galleryDeleteButton) {
+    void handleGalleryDelete(galleryDeleteButton.dataset.galleryDelete);
+    return;
+  }
+
   const wishlistConvertButton = event.target.closest("[data-wishlist-convert-purchased]");
 
   if (wishlistConvertButton) {
@@ -5703,6 +5847,10 @@ function bindEvents() {
   refs.productForm.addEventListener("submit", handleProductSubmit);
   refs.productCancelButton.addEventListener("click", handleProductCancel);
   refs.productImageFile.addEventListener("change", handleProductImageChange);
+  refs.galleryUploadButton?.addEventListener("click", () => {
+    refs.galleryUploadInput?.click();
+  });
+  refs.galleryUploadInput?.addEventListener("change", handleGalleryUpload);
   refs.productForm.addEventListener("input", handleFormInput);
   refs.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
   refs.purchaseInvoiceFile.addEventListener("change", handlePurchaseInvoiceChange);

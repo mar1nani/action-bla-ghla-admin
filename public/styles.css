@@ -3573,6 +3573,10 @@ button:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .gallery-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .details-overview-grid {
     grid-template-columns: 1fr;
   }
@@ -3590,6 +3594,10 @@ button:focus-visible {
 
   .wishlist-grid {
     grid-template-columns: 1fr;
+  }
+
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .wishlist-card-qty-controls {
@@ -3641,6 +3649,15 @@ button:focus-visible {
 
   .wishlist-grid {
     grid-template-columns: 1fr;
+  }
+
+  .gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gallery-card-thumb,
+  .gallery-card-thumb.detail-image-button {
+    min-height: 220px;
   }
 }
 
@@ -4205,6 +4222,73 @@ body.mobile-sidebar-open .sidebar-backdrop {
   width: 84px;
   height: 84px;
   border-radius: 20px;
+}
+
+.gallery-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.gallery-toolbar-hint {
+  color: #6c84a2;
+  font-size: 0.86rem;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.gallery-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(0, 87, 184, 0.12);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 210, 0, 0.1), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow:
+    0 14px 24px rgba(11, 36, 72, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.gallery-card-thumb,
+.gallery-card-thumb.detail-image-button {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 160px;
+  border-radius: 18px;
+}
+
+.gallery-card-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.gallery-card-copy p,
+.gallery-card-copy small {
+  margin: 0;
+}
+
+.gallery-card-copy p {
+  color: #10284b;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.gallery-card-copy small {
+  color: #7f96b1;
+  font-size: 0.78rem;
+}
+
+.gallery-card-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .wishlist-heart-button {

@@ -122,6 +122,37 @@
             <span class="sidebar-label">Wishlist</span>
           </a>
           <a
+            href="/wishlist-gallery"
+            class="sidebar-link"
+            data-section-link="gallery"
+            title="Wishlist Gallery"
+          >
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect
+                  x="3"
+                  y="5"
+                  width="18"
+                  height="14"
+                  rx="2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                ></rect>
+                <circle cx="9" cy="10" r="1.5"></circle>
+                <path
+                  d="M7 16l4-4 3 3 3-2 2 3"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.8"
+                ></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Wishlist Gallery</span>
+          </a>
+          <a
             href="/available-stock"
             class="sidebar-link"
             data-section-link="available"
@@ -1151,6 +1182,39 @@
               <div id="wishlist-table"></div>
             </div>
             <div id="wishlist-pagination" class="table-pagination"></div>
+          </article>
+        </section>
+
+        <section id="gallery" class="section">
+          <article class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Inspirations visuelles</p>
+                <h3>Wishlist Gallery</h3>
+              </div>
+            </div>
+            <p class="section-copy">
+              Ajoute des photos indépendantes des produits. Elles sont compressées au maximum pour prendre le moins d’espace possible.
+            </p>
+            <div class="gallery-toolbar">
+              <input
+                id="gallery-upload-input"
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+              />
+              <button id="gallery-upload-button" class="primary-button" type="button">
+                Ajouter des photos
+              </button>
+              <span class="gallery-toolbar-hint">
+                Upload multiple autorisé · WebP compressé très fort
+              </span>
+            </div>
+            <div class="table-shell">
+              <div id="gallery-table"></div>
+            </div>
+            <div id="gallery-pagination" class="table-pagination"></div>
           </article>
         </section>
 

@@ -536,6 +536,22 @@ function buildWishlistItems(state, store) {
     .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
 }
 
+function buildGalleryItems(store) {
+  return (store.galleryItems ?? [])
+    .map((entry) => ({
+      id: entry.id,
+      imageUrl: entry.imageUrl || "",
+      createdAt: entry.createdAt || new Date().toISOString(),
+      createdByLogin: entry.createdByLogin || "",
+      createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
+      width: Math.max(0, Number(entry.width || 0)),
+      height: Math.max(0, Number(entry.height || 0)),
+      sizeKb: Math.max(0, Number(entry.sizeKb || 0)),
+    }))
+    .filter((entry) => entry.imageUrl)
+    .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+}
+
 function buildAvailableProducts(items) {
   return [...items]
     .filter((product) => (product.metrics?.moroccoStock ?? 0) > 0)
@@ -856,6 +872,37 @@ async function removeProductImage(imageUrl) {
   const fileName = path.basename(imageUrl);
   const filePath = path.join(uploadsDirectory, fileName);
   await fs.rm(filePath, { force: true });
+}
+
+async function persistGalleryImage(upload, galleryItemId) {
+  if (!upload?.dataUrl) {
+    throw createValidationError("Ajoute une photo pour la galerie.");
+  }
+
+  if (typeof upload.dataUrl !== "string") {
+    throw createValidationError("Le format de la photo galerie est invalide.");
+  }
+
+  const match = upload.dataUrl.match(/^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/);
+
+  if (!match) {
+    throw createValidationError("La photo galerie doit être convertie en WebP avant envoi.");
+  }
+
+  if (match[1].length > 4_000_000) {
+    throw createValidationError("La photo galerie compressée reste trop lourde.");
+  }
+
+  if (isDatabaseStoreEnabled()) {
+    return upload.dataUrl;
+  }
+
+  await fs.mkdir(uploadsDirectory, { recursive: true });
+
+  const relativePath = `/uploads/gallery-${galleryItemId}.webp`;
+  const filePath = path.join(uploadsDirectory, `gallery-${galleryItemId}.webp`);
+  await fs.writeFile(filePath, Buffer.from(match[1], "base64"));
+  return relativePath;
 }
 
 function getProductMetricsMap(store) {
@@ -1705,6 +1752,17 @@ app.get(
 );
 
 app.get(
+  "/api/gallery-items",
+  asyncRoute(async (_request, response) => {
+    const store = await readStore();
+    response.json({
+      items: buildGalleryItems(store),
+      pagination: null,
+    });
+  }),
+);
+
+app.get(
   "/api/available-products",
   asyncRoute(async (request, response) => {
     const store = await readStore();
@@ -1985,6 +2043,35 @@ app.post(
   }),
 );
 
+app.post(
+  "/api/gallery-items",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const user = getAuthenticatedUser(request, store);
+      const galleryItem = {
+        id: createId("gal"),
+        imageUrl: "",
+        createdAt: new Date().toISOString(),
+        createdByLogin: user?.login || "",
+        createdByName: user?.displayName || user?.login || "Équipe",
+        width: requireInteger(request.body.width ?? 0, "Largeur image", { min: 1 }),
+        height: requireInteger(request.body.height ?? 0, "Hauteur image", { min: 1 }),
+        sizeKb: requireInteger(request.body.sizeKb ?? 0, "Taille image", { min: 1 }),
+      };
+
+      galleryItem.imageUrl = await persistGalleryImage(request.body.imageUpload, galleryItem.id);
+      store.galleryItems = store.galleryItems ?? [];
+      store.galleryItems.push(galleryItem);
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Photo ajoutée à la galerie.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
 app.patch(
   "/api/wishlist/:wishlistId",
   asyncRoute(async (request, response) => {
@@ -2019,6 +2106,30 @@ app.patch(
 
     response.json({
       message: "Wishlist mise à jour.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.delete(
+  "/api/gallery-items/:galleryItemId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore(async (store) => {
+      const galleryIndex = (store.galleryItems ?? []).findIndex(
+        (entry) => entry.id === request.params.galleryItemId,
+      );
+
+      if (galleryIndex === -1) {
+        throw createNotFoundError("Photo galerie introuvable.");
+      }
+
+      const [galleryItem] = store.galleryItems.splice(galleryIndex, 1);
+      await removeProductImage(galleryItem?.imageUrl);
+      return store;
+    });
+
+    response.json({
+      message: "Photo retirée de la galerie.",
       appState: buildPublicState(nextStore, request),
     });
   }),
