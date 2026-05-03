@@ -4265,6 +4265,11 @@ body.mobile-sidebar-open .sidebar-backdrop {
   gap: 8px;
 }
 
+.wishlist-card-notes {
+  display: grid;
+  gap: 8px;
+}
+
 .wishlist-card-qty-label {
   color: #6c84a2;
   font-size: 0.72rem;
@@ -4295,6 +4300,23 @@ body.mobile-sidebar-open .sidebar-backdrop {
   min-height: 44px;
   padding-inline: 14px;
   border-radius: 14px;
+}
+
+.wishlist-notes-input {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid rgba(12, 41, 84, 0.14);
+  border-radius: 16px;
+  padding: 12px 13px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #10284b;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.wishlist-notes-input::placeholder {
+  color: #8aa0ba;
 }
 
 .wishlist-card-stats {

@@ -1969,6 +1969,7 @@ app.post(
         createdAt: new Date().toISOString(),
         createdByLogin: user?.login || "",
         createdByName: user?.displayName || user?.login || "Équipe",
+        notes: optionalString(request.body.notes),
       });
 
       return store;
@@ -2009,11 +2010,15 @@ app.patch(
         wishlistEntry.purchasedAt = wishlistEntry.purchased ? new Date().toISOString() : null;
       }
 
+      if (request.body.notes !== undefined) {
+        wishlistEntry.notes = optionalString(request.body.notes);
+      }
+
       return store;
     });
 
     response.json({
-      message: "Quantité souhaitée mise à jour.",
+      message: "Wishlist mise à jour.",
       appState: buildPublicState(nextStore, request),
     });
   }),

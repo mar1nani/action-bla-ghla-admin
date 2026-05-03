@@ -2042,6 +2042,16 @@ function renderWishlistCards(items = [], variant = "pending") {
                   </button>
                 </div>
               </div>
+              <div class="wishlist-card-notes">
+                <span class="wishlist-card-qty-label">Notes</span>
+                <textarea
+                  class="wishlist-notes-input"
+                  rows="3"
+                  data-wishlist-notes-input="${escapeHtml(item.id)}"
+                  placeholder="Ajouter une note pour Malak, un détail produit, une précision achat..."
+                  aria-label="Notes pour ${escapeHtml(item.name)}"
+                >${escapeHtml(item.notes || "")}</textarea>
+              </div>
               <div class="wishlist-card-stats">
                 <div>
                   <span>Qté</span>
@@ -4664,6 +4674,12 @@ async function handleWishlistPurchasedToggle(wishlistId, purchased) {
 }
 
 async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
+  const wishlistItem = getTableRecord("wishlist", wishlistId);
+  const wishlistNotesInput = document.querySelector(
+    `[data-wishlist-notes-input="${CSS.escape(wishlistId)}"]`,
+  );
+  const notes = wishlistNotesInput?.value || wishlistItem?.notes || "";
+
   if (!Number.isInteger(desiredQty) || desiredQty < 1) {
     showFlash("La quantité souhaitée doit être au moins de 1.", "error");
     return;
@@ -4674,6 +4690,7 @@ async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
       method: "PATCH",
       body: {
         desiredQty,
+        notes,
       },
     });
     Object.assign(state, result.appState);
