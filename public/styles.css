@@ -3592,6 +3592,26 @@ button:focus-visible {
     margin-left: 64px;
   }
 
+  .wishlist-card,
+  .gallery-card,
+  .available-stock-card {
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: #ffffff;
+    border-color: rgba(0, 87, 184, 0.1);
+    box-shadow: 0 12px 22px rgba(11, 36, 72, 0.05);
+  }
+
+  .gallery-card-field,
+  .available-stock-stats div,
+  .available-stock-media,
+  .wishlist-card-stats div {
+    background: #f7faff;
+    border-color: rgba(0, 87, 184, 0.08);
+    box-shadow: none;
+  }
+
   .wishlist-grid {
     grid-template-columns: 1fr;
   }
@@ -3655,13 +3675,41 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .wishlist-card,
+  .gallery-card,
+  .available-stock-card {
+    padding: 12px;
+    border-radius: 18px;
+    background: #ffffff;
+    border-color: rgba(0, 87, 184, 0.1);
+    box-shadow: 0 8px 16px rgba(11, 36, 72, 0.04);
+  }
+
   .gallery-card-thumb,
   .gallery-card-thumb.detail-image-button {
     min-height: 220px;
+    border-radius: 16px;
+    background: #f2f7ff;
   }
 
   .gallery-card-meta {
     grid-template-columns: 1fr;
+  }
+
+  .available-stock-media {
+    border-radius: 18px;
+    background: #f2f7ff;
+  }
+
+  .available-stock-stats {
+    gap: 8px;
+  }
+
+  .gallery-card-field,
+  .available-stock-stats div,
+  .wishlist-card-stats div {
+    border-radius: 14px;
+    background: #f7faff;
   }
 }
 
