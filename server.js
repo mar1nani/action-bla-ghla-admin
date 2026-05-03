@@ -544,6 +544,8 @@ function buildGalleryItems(store) {
       createdAt: entry.createdAt || new Date().toISOString(),
       createdByLogin: entry.createdByLogin || "",
       createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
+      desiredQty: Math.max(1, Number(entry.desiredQty || 1)),
+      foundPriceEur: Math.max(0, Number(entry.foundPriceEur || 0)),
       width: Math.max(0, Number(entry.width || 0)),
       height: Math.max(0, Number(entry.height || 0)),
       sizeKb: Math.max(0, Number(entry.sizeKb || 0)),
@@ -2054,6 +2056,8 @@ app.post(
         createdAt: new Date().toISOString(),
         createdByLogin: user?.login || "",
         createdByName: user?.displayName || user?.login || "Équipe",
+        desiredQty: 1,
+        foundPriceEur: 0,
         width: requireInteger(request.body.width ?? 0, "Largeur image", { min: 1 }),
         height: requireInteger(request.body.height ?? 0, "Hauteur image", { min: 1 }),
         sizeKb: requireInteger(request.body.sizeKb ?? 0, "Taille image", { min: 1 }),
@@ -2067,6 +2071,42 @@ app.post(
 
     response.status(201).json({
       message: "Photo ajoutée à la galerie.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.patch(
+  "/api/gallery-items/:galleryItemId",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const galleryItem = (store.galleryItems ?? []).find(
+        (entry) => entry.id === request.params.galleryItemId,
+      );
+
+      if (!galleryItem) {
+        throw createNotFoundError("Photo galerie introuvable.");
+      }
+
+      if (request.body.desiredQty !== undefined) {
+        galleryItem.desiredQty = requireInteger(request.body.desiredQty, "Quantité à acheter", {
+          min: 1,
+        });
+      }
+
+      if (request.body.foundPriceEur !== undefined) {
+        galleryItem.foundPriceEur = requireNumber(
+          request.body.foundPriceEur,
+          "Prix magasin EUR",
+          { min: 0 },
+        );
+      }
+
+      return store;
+    });
+
+    response.json({
+      message: "Galerie mise à jour.",
       appState: buildPublicState(nextStore, request),
     });
   }),

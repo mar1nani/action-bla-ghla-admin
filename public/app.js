@@ -2231,7 +2231,40 @@ function renderGalleryTable() {
                   `${formatNumber(item.width || 0, 0)} × ${formatNumber(item.height || 0, 0)} · ${formatNumber(item.sizeKb || 0, 0)} Ko`,
                 )}</small>
               </div>
+              <div class="gallery-card-meta">
+                <div class="gallery-card-field">
+                  <span>Qté à acheter</span>
+                  <input
+                    class="gallery-meta-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
+                    data-gallery-qty-input="${escapeHtml(item.id)}"
+                    aria-label="Quantité à acheter"
+                  />
+                </div>
+                <div class="gallery-card-field">
+                  <span>Prix magasin EUR</span>
+                  <input
+                    class="gallery-meta-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
+                    data-gallery-price-input="${escapeHtml(item.id)}"
+                    aria-label="Prix magasin en euro"
+                  />
+                </div>
+              </div>
               <div class="gallery-card-actions">
+                <button
+                  class="ghost-button wishlist-qty-save"
+                  type="button"
+                  data-gallery-save="${escapeHtml(item.id)}"
+                >
+                  Enregistrer
+                </button>
                 <button
                   class="ghost-button table-action-button table-icon-delete"
                   type="button"
@@ -4838,6 +4871,33 @@ async function handleGalleryDelete(galleryItemId) {
   }
 }
 
+async function handleGalleryMetaUpdate(galleryItemId, desiredQty, foundPriceEur) {
+  if (!Number.isInteger(desiredQty) || desiredQty < 1) {
+    showFlash("La quantité à acheter doit être au moins de 1.", "error");
+    return;
+  }
+
+  if (!Number.isFinite(foundPriceEur) || foundPriceEur < 0) {
+    showFlash("Le prix magasin EUR doit être supérieur ou égal à 0.", "error");
+    return;
+  }
+
+  try {
+    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
+      method: "PATCH",
+      body: {
+        desiredQty,
+        foundPriceEur,
+      },
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["gallery"]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
 async function handlePurchaseSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -5489,6 +5549,23 @@ function handleDocumentClick(event) {
 
   if (galleryDeleteButton) {
     void handleGalleryDelete(galleryDeleteButton.dataset.galleryDelete);
+    return;
+  }
+
+  const gallerySaveButton = event.target.closest("[data-gallery-save]");
+
+  if (gallerySaveButton) {
+    const galleryCard = gallerySaveButton.closest(".gallery-card");
+    const qtyInput = galleryCard?.querySelector("[data-gallery-qty-input]");
+    const priceInput = galleryCard?.querySelector("[data-gallery-price-input]");
+    const desiredQty = Number.parseInt(qtyInput?.value || "0", 10);
+    const foundPriceEur = Number(priceInput?.value || "0");
+
+    void handleGalleryMetaUpdate(
+      gallerySaveButton.dataset.gallerySave,
+      desiredQty,
+      foundPriceEur,
+    );
     return;
   }
 
