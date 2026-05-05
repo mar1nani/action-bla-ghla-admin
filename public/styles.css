@@ -6048,4 +6048,20 @@ body.mobile-sidebar-open .sidebar-backdrop {
   #purchases-list .table-actions {
     gap: 6px;
   }
+
+  body.is-mobile-viewport #wishlist .wishlist-grid,
+  body.is-mobile-viewport #gallery .gallery-grid,
+  body.is-mobile-viewport #available .available-products-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  body.is-mobile-viewport #wishlist .wishlist-card,
+  body.is-mobile-viewport #gallery .gallery-card,
+  body.is-mobile-viewport #available .available-stock-card {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
 }
