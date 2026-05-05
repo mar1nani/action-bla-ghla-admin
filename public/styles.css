@@ -3592,10 +3592,18 @@ button:focus-visible {
     margin-left: 64px;
   }
 
+  .wishlist-grid,
+  .gallery-grid,
+  .available-products-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
   .wishlist-card,
   .gallery-card,
   .available-stock-card {
     width: 100%;
+    max-width: none;
     box-sizing: border-box;
     overflow: hidden;
     padding: 0;
@@ -3620,6 +3628,10 @@ button:focus-visible {
   .wishlist-card-head {
     display: grid;
     place-items: center;
+  }
+
+  .gallery-card {
+    align-content: start;
   }
 
   .wishlist-card-action-stack {
@@ -3686,6 +3698,7 @@ button:focus-visible {
   .gallery-card-copy,
   .available-stock-copy {
     padding-top: 16px;
+    min-width: 0;
   }
 
   .wishlist-card-stats,
@@ -3712,14 +3725,6 @@ button:focus-visible {
     background: #f7faff;
     border-color: rgba(0, 87, 184, 0.08);
     box-shadow: none;
-  }
-
-  .wishlist-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .gallery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .wishlist-card-qty-controls {
@@ -3767,14 +3772,6 @@ button:focus-visible {
 
   .profile-menu {
     right: -4px;
-  }
-
-  .wishlist-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .gallery-grid {
-    grid-template-columns: 1fr;
   }
 
   .wishlist-card,
