@@ -4486,6 +4486,92 @@ body.mobile-sidebar-open .sidebar-backdrop {
     inset 0 1px 1px rgba(12, 41, 84, 0.04);
 }
 
+.gallery-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.gallery-tab {
+  padding: 8px 18px;
+  border: 1.5px solid rgba(0, 87, 184, 0.18);
+  border-radius: 20px;
+  background: transparent;
+  color: #10284b;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gallery-tab:hover {
+  border-color: rgba(0, 87, 184, 0.4);
+  background: rgba(0, 87, 184, 0.05);
+}
+
+.gallery-tab--active {
+  background: #0057b8;
+  border-color: #0057b8;
+  color: #fff;
+}
+
+.gallery-tab-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.gallery-tab--active .gallery-tab-count {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.gallery-card--bought {
+  opacity: 0.75;
+}
+
+.gallery-card--bought .gallery-card-thumb {
+  filter: grayscale(30%);
+}
+
+.gallery-btn-purchase {
+  color: #1a7a4a;
+  border-color: rgba(26, 122, 74, 0.3) !important;
+}
+
+.gallery-btn-purchase:hover {
+  background: rgba(26, 122, 74, 0.08) !important;
+}
+
+.gallery-btn-unpurchase {
+  color: #888;
+}
+
+.gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #888;
+  padding: 32px 0;
+  font-size: 0.9rem;
+}
+
+.gallery-card-field--note {
+  grid-column: 1 / -1;
+}
+
+.gallery-note-input {
+  min-height: 64px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .gallery-card-actions {
   display: flex;
   align-items: center;

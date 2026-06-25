@@ -2204,83 +2204,116 @@ function renderGalleryTable() {
   refs.galleryPagination.hidden = true;
   refs.galleryPagination.innerHTML = "";
 
-  if (!items.length) {
-    refs.galleryTable.innerHTML = renderEmptyState(
-      "Aucune photo dans la galerie pour le moment.",
-    );
-    return;
-  }
+  const activeTab = refs.galleryTable.dataset.activeTab || "pending";
+
+  const pending = items.filter((i) => !i.purchased);
+  const bought = items.filter((i) => i.purchased);
+  const visibleItems = activeTab === "bought" ? bought : pending;
+
+  const renderGalleryCard = (item) => `
+    <article class="gallery-card${item.purchased ? " gallery-card--bought" : ""}">
+      ${renderProductThumb({
+        imageUrl: item.imageUrl,
+        label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
+        className: "gallery-card-thumb",
+        fallback: "WG",
+        button: true,
+      })}
+      <div class="gallery-card-copy">
+        <p>${escapeHtml(item.createdByName || item.createdByLogin || "Équipe")}</p>
+        <small>${escapeHtml(formatDate(item.createdAt))}</small>
+        <small>${escapeHtml(
+          `${formatNumber(item.width || 0, 0)} × ${formatNumber(item.height || 0, 0)} · ${formatNumber(item.sizeKb || 0, 0)} Ko`,
+        )}</small>
+      </div>
+      <div class="gallery-card-meta">
+        <div class="gallery-card-field">
+          <span>Qté à acheter</span>
+          <input
+            class="gallery-meta-input"
+            type="number"
+            min="1"
+            step="1"
+            value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
+            data-gallery-qty-input="${escapeHtml(item.id)}"
+            aria-label="Quantité à acheter"
+          />
+        </div>
+        <div class="gallery-card-field">
+          <span>Prix magasin EUR</span>
+          <input
+            class="gallery-meta-input"
+            type="number"
+            min="0"
+            step="0.01"
+            value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
+            data-gallery-price-input="${escapeHtml(item.id)}"
+            aria-label="Prix magasin en euro"
+          />
+        </div>
+        <div class="gallery-card-field gallery-card-field--note">
+          <span>Note</span>
+          <textarea
+            class="gallery-meta-input gallery-note-input"
+            rows="2"
+            placeholder="Ajouter une note…"
+            data-gallery-note-input="${escapeHtml(item.id)}"
+            aria-label="Note"
+          >${escapeHtml(item.note ?? "")}</textarea>
+        </div>
+      </div>
+      <div class="gallery-card-actions">
+        <button
+          class="ghost-button wishlist-qty-save"
+          type="button"
+          data-gallery-save="${escapeHtml(item.id)}"
+        >
+          Enregistrer
+        </button>
+        <button
+          class="ghost-button${item.purchased ? " gallery-btn-unpurchase" : " gallery-btn-purchase"}"
+          type="button"
+          data-gallery-toggle-purchased="${escapeHtml(item.id)}"
+          title="${item.purchased ? "Marquer non acheté" : "Marquer comme acheté"}"
+        >
+          ${item.purchased ? "↩ Non acheté" : "✓ Acheté"}
+        </button>
+        <button
+          class="ghost-button table-action-button table-icon-delete"
+          type="button"
+          data-gallery-delete="${escapeHtml(item.id)}"
+          aria-label="Supprimer cette photo"
+          title="Supprimer"
+        >
+          ${renderIcon("delete")}
+        </button>
+      </div>
+    </article>
+  `;
 
   refs.galleryTable.innerHTML = `
+    <div class="gallery-tabs">
+      <button class="gallery-tab${activeTab === "pending" ? " gallery-tab--active" : ""}" data-gallery-tab="pending">
+        À acheter <span class="gallery-tab-count">${pending.length}</span>
+      </button>
+      <button class="gallery-tab${activeTab === "bought" ? " gallery-tab--active" : ""}" data-gallery-tab="bought">
+        Acheté <span class="gallery-tab-count">${bought.length}</span>
+      </button>
+    </div>
     <div class="gallery-grid">
-      ${items
-        .map(
-          (item) => `
-            <article class="gallery-card">
-              ${renderProductThumb({
-                imageUrl: item.imageUrl,
-                label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
-                className: "gallery-card-thumb",
-                fallback: "WG",
-                button: true,
-              })}
-              <div class="gallery-card-copy">
-                <p>${escapeHtml(item.createdByName || item.createdByLogin || "Équipe")}</p>
-                <small>${escapeHtml(formatDate(item.createdAt))}</small>
-                <small>${escapeHtml(
-                  `${formatNumber(item.width || 0, 0)} × ${formatNumber(item.height || 0, 0)} · ${formatNumber(item.sizeKb || 0, 0)} Ko`,
-                )}</small>
-              </div>
-              <div class="gallery-card-meta">
-                <div class="gallery-card-field">
-                  <span>Qté à acheter</span>
-                  <input
-                    class="gallery-meta-input"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
-                    data-gallery-qty-input="${escapeHtml(item.id)}"
-                    aria-label="Quantité à acheter"
-                  />
-                </div>
-                <div class="gallery-card-field">
-                  <span>Prix magasin EUR</span>
-                  <input
-                    class="gallery-meta-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
-                    data-gallery-price-input="${escapeHtml(item.id)}"
-                    aria-label="Prix magasin en euro"
-                  />
-                </div>
-              </div>
-              <div class="gallery-card-actions">
-                <button
-                  class="ghost-button wishlist-qty-save"
-                  type="button"
-                  data-gallery-save="${escapeHtml(item.id)}"
-                >
-                  Enregistrer
-                </button>
-                <button
-                  class="ghost-button table-action-button table-icon-delete"
-                  type="button"
-                  data-gallery-delete="${escapeHtml(item.id)}"
-                  aria-label="Supprimer cette photo"
-                  title="Supprimer"
-                >
-                  ${renderIcon("delete")}
-                </button>
-              </div>
-            </article>
-          `,
-        )
-        .join("")}
+      ${visibleItems.length
+        ? visibleItems.map(renderGalleryCard).join("")
+        : `<p class="gallery-empty">${activeTab === "bought" ? "Aucun article acheté pour le moment." : "Aucune photo en attente d'achat."}</p>`
+      }
     </div>
   `;
+
+  refs.galleryTable.querySelectorAll("[data-gallery-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      refs.galleryTable.dataset.activeTab = btn.dataset.galleryTab;
+      renderGallerySection();
+    });
+  });
 }
 
 function renderAvailableProducts() {
@@ -4880,7 +4913,21 @@ async function handleGalleryDelete(galleryItemId) {
   }
 }
 
-async function handleGalleryMetaUpdate(galleryItemId, desiredQty, foundPriceEur) {
+async function handleGalleryTogglePurchased(galleryItemId) {
+  try {
+    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
+      method: "PATCH",
+      body: { togglePurchased: true },
+    });
+    Object.assign(state, result.appState);
+    await refreshTableData(["gallery"]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
+async function handleGalleryMetaUpdate(galleryItemId, desiredQty, foundPriceEur, note = "") {
   if (!Number.isInteger(desiredQty) || desiredQty < 1) {
     showFlash("La quantité à acheter doit être au moins de 1.", "error");
     return;
@@ -4897,6 +4944,7 @@ async function handleGalleryMetaUpdate(galleryItemId, desiredQty, foundPriceEur)
       body: {
         desiredQty,
         foundPriceEur,
+        note,
       },
     });
     Object.assign(state, result.appState);
@@ -5561,19 +5609,29 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const galleryTogglePurchasedButton = event.target.closest("[data-gallery-toggle-purchased]");
+
+  if (galleryTogglePurchasedButton) {
+    void handleGalleryTogglePurchased(galleryTogglePurchasedButton.dataset.galleryTogglePurchased);
+    return;
+  }
+
   const gallerySaveButton = event.target.closest("[data-gallery-save]");
 
   if (gallerySaveButton) {
     const galleryCard = gallerySaveButton.closest(".gallery-card");
     const qtyInput = galleryCard?.querySelector("[data-gallery-qty-input]");
     const priceInput = galleryCard?.querySelector("[data-gallery-price-input]");
+    const noteInput = galleryCard?.querySelector("[data-gallery-note-input]");
     const desiredQty = Number.parseInt(qtyInput?.value || "0", 10);
     const foundPriceEur = Number(priceInput?.value || "0");
+    const note = noteInput?.value ?? "";
 
     void handleGalleryMetaUpdate(
       gallerySaveButton.dataset.gallerySave,
       desiredQty,
       foundPriceEur,
+      note,
     );
     return;
   }

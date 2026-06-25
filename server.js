@@ -549,6 +549,8 @@ function buildGalleryItems(store) {
       width: Math.max(0, Number(entry.width || 0)),
       height: Math.max(0, Number(entry.height || 0)),
       sizeKb: Math.max(0, Number(entry.sizeKb || 0)),
+      purchased: Boolean(entry.purchased),
+      note: entry.note || "",
     }))
     .filter((entry) => entry.imageUrl)
     .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
@@ -2119,11 +2121,27 @@ app.patch(
         );
       }
 
+      if (request.body.note !== undefined) {
+        galleryItem.note = String(request.body.note).slice(0, 500);
+      }
+
+      if (request.body.togglePurchased) {
+        galleryItem.purchased = !galleryItem.purchased;
+      }
+
       return store;
     });
 
+    const updatedItem = (nextStore.galleryItems ?? []).find(
+      (e) => e.id === request.params.galleryItemId,
+    );
+    const message = request.body.togglePurchased
+      ? updatedItem?.purchased
+        ? "Marqué comme acheté."
+        : "Marqué comme non acheté."
+      : "Galerie mise à jour.";
     response.json({
-      message: "Galerie mise à jour.",
+      message,
       appState: buildPublicState(nextStore, request),
     });
   }),
