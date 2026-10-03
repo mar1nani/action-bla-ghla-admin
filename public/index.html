@@ -2,14 +2,30 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Action BLA Ghla</title>
     <meta
       name="description"
       content="Application de gestion de stock, achats, envois vers le Maroc, commandes clients et statistiques."
     />
-    <link rel="icon" type="image/png" href="/assets/logo-action-bla-ghla.png" />
-    <link rel="apple-touch-icon" href="/assets/logo-action-bla-ghla.png" />
+    <meta name="theme-color" content="#0b2f66" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Action" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-startup-image" href="/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,6 +33,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/modern.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -1186,34 +1203,27 @@
         </section>
 
         <section id="gallery" class="section">
-          <article class="panel">
-            <div class="section-head">
+          <article class="panel gallery-panel">
+            <div class="section-head gallery-head">
               <div>
                 <p class="eyebrow">Inspirations visuelles</p>
                 <h3>Wishlist Gallery</h3>
+                <p class="gallery-sub">Photos repérées en magasin · touche le rond pour sélectionner plusieurs photos.</p>
+              </div>
+              <div class="gallery-toolbar">
+                <input
+                  id="gallery-upload-input"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                />
+                <button id="gallery-upload-button" class="primary-button gallery-add" type="button">
+                  Ajouter des photos
+                </button>
               </div>
             </div>
-            <p class="section-copy">
-              Ajoute des photos indépendantes des produits. Elles sont compressées au maximum pour prendre le moins d’espace possible.
-            </p>
-            <div class="gallery-toolbar">
-              <input
-                id="gallery-upload-input"
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-              />
-              <button id="gallery-upload-button" class="primary-button" type="button">
-                Ajouter des photos
-              </button>
-              <span class="gallery-toolbar-hint">
-                Upload multiple autorisé · WebP compressé très fort
-              </span>
-            </div>
-            <div class="table-shell">
-              <div id="gallery-table"></div>
-            </div>
+            <div id="gallery-table"></div>
             <div id="gallery-pagination" class="table-pagination"></div>
           </article>
         </section>
@@ -1337,81 +1347,51 @@
         </section>
         </main>
 
-        <nav class="mobile-nav" aria-label="Navigation mobile principale">
-          <a href="/" class="mobile-nav-link" data-section-link="dashboard" title="Tableau de bord">
-            <span class="mobile-nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7" rx="2"></rect>
-                <rect x="14" y="3" width="7" height="10" rx="2"></rect>
-                <rect x="3" y="14" width="7" height="7" rx="2"></rect>
-                <rect x="14" y="16" width="7" height="5" rx="2"></rect>
-              </svg>
-            </span>
-            <span class="mobile-nav-label">Accueil</span>
+        <div id="tabbar-sheet" class="tabbar-sheet" hidden>
+          <div class="tabbar-sheet-backdrop" data-tabbar-close></div>
+          <div class="tabbar-sheet-panel" role="menu" aria-label="Ajouter">
+            <p class="tabbar-sheet-title">Ajouter</p>
+            <button class="tabbar-sheet-item" type="button" role="menuitem" data-tabbar-close data-open-modal="product-modal" data-modal-path="/products" data-form-type="product">
+              <span class="tabbar-sheet-icon is-blue">📦</span><span><strong>Nouveau produit</strong><small>Ajouter au catalogue</small></span>
+            </button>
+            <button class="tabbar-sheet-item" type="button" role="menuitem" data-tabbar-close data-open-modal="purchase-modal" data-modal-path="/purchases" data-form-type="purchase">
+              <span class="tabbar-sheet-icon is-yellow">🧾</span><span><strong>Nouvel achat</strong><small>Fournisseur, stock France</small></span>
+            </button>
+            <button class="tabbar-sheet-item" type="button" role="menuitem" data-tabbar-close data-open-modal="shipment-modal" data-modal-path="/shipments" data-form-type="shipment">
+              <span class="tabbar-sheet-icon is-cyan">🚚</span><span><strong>Nouvel envoi</strong><small>France → Maroc</small></span>
+            </button>
+            <button class="tabbar-sheet-item" type="button" role="menuitem" data-tabbar-close data-open-modal="order-modal" data-modal-path="/orders" data-form-type="order">
+              <span class="tabbar-sheet-icon is-pink">🛍️</span><span><strong>Nouvelle commande</strong><small>Client au Maroc</small></span>
+            </button>
+          </div>
+        </div>
+
+        <nav class="tabbar" aria-label="Navigation mobile principale">
+          <a href="/" class="tabbar-link" data-section-link="dashboard" title="Tableau de bord">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="10" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="16" width="7" height="5" rx="2"></rect></svg>
+            <span>Accueil</span>
           </a>
-          <a href="/products" class="mobile-nav-link" data-section-link="products" title="Produits">
-            <span class="mobile-nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                ></path>
-                <path
-                  d="M12 12l8-4.5M12 12L4 7.5M12 12v9"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-width="1.8"
-                ></path>
-              </svg>
-            </span>
-            <span class="mobile-nav-label">Produits</span>
+          <a href="/products" class="tabbar-link" data-section-link="products" title="Produits">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"></path><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"></path></svg>
+            <span>Produits</span>
           </a>
-          <span class="mobile-nav-gap" aria-hidden="true"></span>
-          <a href="/orders" class="mobile-nav-link" data-section-link="orders" title="Commandes">
-            <span class="mobile-nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M6 7h12l-1 11H7L6 7z"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                ></path>
-                <path
-                  d="M9 9V7a3 3 0 016 0v2"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-width="1.8"
-                ></path>
-              </svg>
-            </span>
-            <span class="mobile-nav-label">Commandes</span>
+          <button id="tabbar-fab" class="tabbar-fab" type="button" aria-label="Ajouter" aria-haspopup="menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          <a href="/wishlist-gallery" class="tabbar-link" data-section-link="gallery" title="Wishlist Gallery">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-8 8"></path></svg>
+            <span>Galerie</span>
           </a>
           <button
             id="mobile-nav-menu-toggle"
-            class="mobile-nav-link mobile-nav-link-button"
+            class="tabbar-link tabbar-link-button"
             type="button"
             aria-expanded="false"
             aria-label="Ouvrir le menu"
             title="Menu"
           >
-            <span class="mobile-nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M4 7h16M4 12h16M4 17h16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-width="2"
-                ></path>
-              </svg>
-            </span>
-            <span class="mobile-nav-label">Menu</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+            <span>Menu</span>
           </button>
         </nav>
 
@@ -1558,5 +1538,6 @@
     </div>
 
     <script type="module" src="/app.js"></script>
+    <script type="module" src="/pwa.js"></script>
   </body>
 </html>

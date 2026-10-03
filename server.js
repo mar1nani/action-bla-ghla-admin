@@ -2095,6 +2095,109 @@ app.post(
   }),
 );
 
+const BULK_ACTIONS = new Set(["purchase", "unpurchase", "delete"]);
+
+function readBulkRequest(body) {
+  const ids = Array.isArray(body?.ids)
+    ? [...new Set(body.ids.map((id) => String(id)).filter(Boolean))]
+    : [];
+
+  if (!ids.length) {
+    throw createValidationError("Sélectionne au moins un élément.");
+  }
+
+  if (ids.length > 500) {
+    throw createValidationError("Trop d'éléments sélectionnés (500 maximum).");
+  }
+
+  if (!BULK_ACTIONS.has(body?.action)) {
+    throw createValidationError("Action groupée inconnue.");
+  }
+
+  return { ids, action: body.action };
+}
+
+app.post(
+  "/api/gallery-items/bulk",
+  asyncRoute(async (request, response) => {
+    const { ids, action } = readBulkRequest(request.body);
+    let affected = 0;
+
+    const nextStore = await updateStore(async (store) => {
+      const selected = new Set(ids);
+      const items = store.galleryItems ?? [];
+
+      if (action === "delete") {
+        const removed = items.filter((entry) => selected.has(entry.id));
+        affected = removed.length;
+        store.galleryItems = items.filter((entry) => !selected.has(entry.id));
+        for (const entry of removed) {
+          await removeProductImage(entry.imageUrl);
+        }
+        return store;
+      }
+
+      for (const entry of items) {
+        if (selected.has(entry.id)) {
+          entry.purchased = action === "purchase";
+          affected += 1;
+        }
+      }
+      return store;
+    });
+
+    const labels = {
+      purchase: "marquée(s) comme achetée(s)",
+      unpurchase: "remise(s) à acheter",
+      delete: "supprimée(s)",
+    };
+    response.json({
+      message: `${affected} photo(s) ${labels[action]}.`,
+      affected,
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/wishlist/bulk",
+  asyncRoute(async (request, response) => {
+    const { ids, action } = readBulkRequest(request.body);
+    let affected = 0;
+
+    const nextStore = await updateStore((store) => {
+      const selected = new Set(ids);
+      const entries = store.wishlist ?? [];
+
+      if (action === "delete") {
+        affected = entries.filter((entry) => selected.has(entry.id)).length;
+        store.wishlist = entries.filter((entry) => !selected.has(entry.id));
+        return store;
+      }
+
+      for (const entry of entries) {
+        if (selected.has(entry.id)) {
+          entry.purchased = action === "purchase";
+          entry.purchasedAt = entry.purchased ? new Date().toISOString() : null;
+          affected += 1;
+        }
+      }
+      return store;
+    });
+
+    const labels = {
+      purchase: "marqué(s) comme acheté(s)",
+      unpurchase: "remis à acheter",
+      delete: "retiré(s) de la wishlist",
+    };
+    response.json({
+      message: `${affected} produit(s) ${labels[action]}.`,
+      affected,
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
 app.patch(
   "/api/gallery-items/:galleryItemId",
   asyncRoute(async (request, response) => {

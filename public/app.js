@@ -104,6 +104,12 @@ let activePurchaseSourceWishlistIds = [];
 const selectedProductIdsForPurchase = new Set();
 const selectedPurchaseIdsForShipment = new Set();
 const expandedPurchaseIds = new Set();
+const bulkSelection = { gallery: new Set(), wishlist: new Set() };
+const BULK_ENDPOINTS = { gallery: "/api/gallery-items/bulk", wishlist: "/api/wishlist/bulk" };
+const BULK_NOUNS = {
+  gallery: { one: "photo", many: "photos" },
+  wishlist: { one: "produit", many: "produits" },
+};
 const tableFilters = structuredClone(DEFAULT_TABLE_FILTERS);
 let activeShipmentSourcePurchaseIds = [];
 const PAGE_CONFIG = {
@@ -515,6 +521,7 @@ function applyPageLayout() {
   }
 
   document.body.dataset.page = currentPageKey;
+  renderBulkBar();
 
   refs.sections.forEach((section) => {
     section.hidden = section.id !== currentPageKey;
@@ -1995,7 +2002,11 @@ function renderWishlistCards(items = [], variant = "pending") {
       ${items
         .map(
           (item) => `
-            <article class="wishlist-card ${item.purchased ? "is-purchased" : ""}">
+            <article
+              class="wishlist-card ${item.purchased ? "is-purchased" : ""}${bulkSelection.wishlist.has(item.id) ? " is-selected" : ""}"
+              data-bulk-card="wishlist:${escapeHtml(item.id)}"
+            >
+              ${renderSelectCheck("wishlist", item.id, bulkSelection.wishlist.has(item.id))}
               <div class="wishlist-card-head">
                 ${renderProductThumb({
                   imageUrl: item.imageUrl,
@@ -2098,6 +2109,7 @@ function renderWishlistTable() {
   }
 
   const items = ensureTableState("wishlist").items;
+  pruneBulkSelection("wishlist");
   const pendingItems = items.filter((item) => !item.purchased);
   const purchasedItems = items.filter((item) => item.purchased);
   const summary = calculateWishlistSummary(items);
@@ -2110,6 +2122,7 @@ function renderWishlistTable() {
     refs.wishlistTable.innerHTML = renderEmptyState(
       "Aucun produit dans la wishlist pour le moment.",
     );
+    syncBulkSelectionDom();
     return;
   }
 
@@ -2178,7 +2191,10 @@ function renderWishlistTable() {
           <p class="eyebrow">En attente</p>
           <h4>Produits à acheter</h4>
         </div>
-        <span class="pill pill-wait">${escapeHtml(formatNumber(pendingItems.length, 0))}</span>
+        <div class="wishlist-group-tools">
+          ${pendingItems.length ? `<button class="g-select-all" type="button" data-bulk-select-all="${escapeHtml(pendingItems.map((i) => i.id).join(","))}" data-bulk-scope="wishlist">Tout sélectionner</button>` : ""}
+          <span class="pill pill-wait">${escapeHtml(formatNumber(pendingItems.length, 0))}</span>
+        </div>
       </div>
       ${renderWishlistCards(pendingItems, "pending")}
     </section>
@@ -2188,10 +2204,284 @@ function renderWishlistTable() {
           <p class="eyebrow">Validé</p>
           <h4>Produits achetés</h4>
         </div>
-        <span class="pill pill-ready">${escapeHtml(formatNumber(purchasedItems.length, 0))}</span>
+        <div class="wishlist-group-tools">
+          ${purchasedItems.length ? `<button class="g-select-all" type="button" data-bulk-select-all="${escapeHtml(purchasedItems.map((i) => i.id).join(","))}" data-bulk-scope="wishlist">Tout sélectionner</button>` : ""}
+          <span class="pill pill-ready">${escapeHtml(formatNumber(purchasedItems.length, 0))}</span>
+        </div>
       </div>
       ${renderWishlistCards(purchasedItems, "purchased")}
     </section>
+  `;
+  syncBulkSelectionDom();
+}
+
+Object.assign(ICONS, {
+  check: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>`,
+  undo: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 010 12h-3"></path></svg>`,
+  plus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>`,
+  minus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>`,
+  close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`,
+  photos: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-8 8"></path></svg>`,
+});
+
+function pruneBulkSelection(scope) {
+  const knownIds = new Set(ensureTableState(scope).items.map((item) => item.id));
+
+  for (const id of [...bulkSelection[scope]]) {
+    if (!knownIds.has(id)) {
+      bulkSelection[scope].delete(id);
+    }
+  }
+}
+
+function renderSelectCheck(scope, id, selected) {
+  return `
+    <button
+      class="select-check${selected ? " is-checked" : ""}"
+      type="button"
+      data-bulk-toggle="${escapeHtml(`${scope}:${id}`)}"
+      aria-pressed="${selected ? "true" : "false"}"
+      aria-label="Sélectionner"
+    >
+      ${renderIcon("check")}
+    </button>
+  `;
+}
+
+function toggleBulkItem(scope, id) {
+  const selection = bulkSelection[scope];
+
+  if (!selection) {
+    return;
+  }
+
+  if (selection.has(id)) {
+    selection.delete(id);
+  } else {
+    selection.add(id);
+  }
+
+  syncBulkSelectionDom();
+}
+
+function syncBulkSelectionDom() {
+  document.querySelectorAll("[data-bulk-card]").forEach((card) => {
+    const [scope, id] = card.dataset.bulkCard.split(":");
+    const selected = bulkSelection[scope]?.has(id) ?? false;
+    card.classList.toggle("is-selected", selected);
+    const check = card.querySelector("[data-bulk-toggle]");
+    check?.classList.toggle("is-checked", selected);
+    check?.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+  document.querySelectorAll("[data-bulk-select-all]").forEach((button) => {
+    const ids = (button.dataset.bulkSelectAll || "").split(",").filter(Boolean);
+    const [scope] = (button.dataset.bulkScope || "").split(":");
+    const allSelected = ids.length > 0 && ids.every((id) => bulkSelection[scope]?.has(id));
+    button.textContent = allSelected ? "Tout désélectionner" : "Tout sélectionner";
+  });
+  renderBulkBar();
+}
+
+function renderBulkBar() {
+  let bar = document.querySelector("#bulk-bar");
+
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "bulk-bar";
+    bar.className = "bulk-bar";
+    bar.hidden = true;
+    document.body.append(bar);
+  }
+
+  const page = document.body.dataset.page;
+  const scope = page === "gallery" ? "gallery" : page === "wishlist" ? "wishlist" : "";
+  const selectedIds = scope ? [...bulkSelection[scope]] : [];
+
+  if (!scope || !selectedIds.length) {
+    bar.hidden = true;
+    bar.innerHTML = "";
+    document.body.classList.remove("has-bulk-bar");
+    return;
+  }
+
+  const items = ensureTableState(scope).items.filter((item) => selectedIds.includes(item.id));
+  const hasPending = items.some((item) => !item.purchased);
+  const hasPurchased = items.some((item) => item.purchased);
+  const noun = BULK_NOUNS[scope][items.length > 1 ? "many" : "one"];
+
+  bar.innerHTML = `
+    <div class="bulk-bar-info">
+      <button class="bulk-bar-clear" type="button" data-bulk-clear aria-label="Annuler la sélection">
+        ${renderIcon("close")}
+      </button>
+      <span><strong>${escapeHtml(formatNumber(items.length, 0))}</strong> ${escapeHtml(noun)}</span>
+    </div>
+    <div class="bulk-bar-actions">
+      ${hasPending ? `<button class="bulk-btn bulk-btn--buy" type="button" data-bulk-action="purchase">${renderIcon("check")}<span>Acheté</span></button>` : ""}
+      ${hasPurchased ? `<button class="bulk-btn bulk-btn--undo" type="button" data-bulk-action="unpurchase">${renderIcon("undo")}<span>À acheter</span></button>` : ""}
+      <button class="bulk-btn bulk-btn--delete" type="button" data-bulk-action="delete">${renderIcon("delete")}<span>Supprimer</span></button>
+    </div>
+  `;
+  bar.hidden = false;
+  document.body.classList.add("has-bulk-bar");
+}
+
+async function runBulkAction(action) {
+  const page = document.body.dataset.page;
+  const scope = page === "gallery" ? "gallery" : page === "wishlist" ? "wishlist" : "";
+  const ids = scope ? [...bulkSelection[scope]] : [];
+
+  if (!scope || !ids.length) {
+    return;
+  }
+
+  const noun = BULK_NOUNS[scope][ids.length > 1 ? "many" : "one"];
+
+  if (action === "delete") {
+    const confirmed = await openConfirmDialog({
+      title: `Supprimer ${ids.length} ${noun} ?`,
+      message:
+        scope === "gallery"
+          ? "Les photos sélectionnées seront supprimées définitivement."
+          : "Les produits sélectionnés seront retirés de la wishlist.",
+      confirmLabel: `Supprimer (${ids.length})`,
+    });
+
+    if (!confirmed) {
+      return;
+    }
+  }
+
+  try {
+    const result = await apiRequest(BULK_ENDPOINTS[scope], {
+      method: "POST",
+      body: { ids, action },
+    });
+    Object.assign(state, result.appState);
+    bulkSelection[scope].clear();
+    await refreshTableData([scope]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
+function sumGallery(items) {
+  return items.reduce(
+    (total, item) => total + Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0),
+    0,
+  );
+}
+
+function renderGallerySummary(pending, bought) {
+  return `
+    <div class="g-summary">
+      <div class="g-stat">
+        <span>À acheter</span>
+        <strong>${escapeHtml(formatNumber(pending.length, 0))}</strong>
+      </div>
+      <div class="g-stat g-stat--money">
+        <span>Budget estimé</span>
+        <strong data-gallery-total-pending>${escapeHtml(formatCurrency(sumGallery(pending), "EUR"))}</strong>
+      </div>
+      <div class="g-stat g-stat--done">
+        <span>Acheté</span>
+        <strong>${escapeHtml(formatNumber(bought.length, 0))}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function renderGalleryCard(item) {
+  const selected = bulkSelection.gallery.has(item.id);
+  const lineTotal = Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0);
+  const id = escapeHtml(item.id);
+
+  return `
+    <article
+      class="g-card${item.purchased ? " is-bought" : ""}${selected ? " is-selected" : ""}"
+      data-bulk-card="gallery:${id}"
+    >
+      <div class="g-photo">
+        ${renderProductThumb({
+          imageUrl: item.imageUrl,
+          label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
+          className: "g-photo-button",
+          fallback: "WG",
+          button: true,
+        })}
+        ${renderSelectCheck("gallery", item.id, selected)}
+        ${item.purchased ? `<span class="g-badge">${renderIcon("check")}Acheté</span>` : ""}
+        <span class="g-line-total" data-gallery-line-total="${id}" ${lineTotal > 0 ? "" : "hidden"}>
+          ${escapeHtml(formatCurrency(lineTotal, "EUR"))}
+        </span>
+      </div>
+      <div class="g-body">
+        <div class="g-fields">
+          <div class="g-field">
+            <span>Qté</span>
+            <div class="g-stepper">
+              <button type="button" data-gallery-step="${id}:-1" aria-label="Moins">${renderIcon("minus")}</button>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
+                data-gallery-qty-input="${id}"
+                aria-label="Quantité à acheter"
+              />
+              <button type="button" data-gallery-step="${id}:1" aria-label="Plus">${renderIcon("plus")}</button>
+            </div>
+          </div>
+          <div class="g-field">
+            <span>Prix magasin</span>
+            <label class="g-price">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
+                data-gallery-price-input="${id}"
+                aria-label="Prix magasin en euro"
+              />
+              <em>€</em>
+            </label>
+          </div>
+        </div>
+        <textarea
+          class="g-note"
+          rows="1"
+          placeholder="Ajouter une note…"
+          data-gallery-note-input="${id}"
+          aria-label="Note"
+        >${escapeHtml(item.note ?? "")}</textarea>
+        <div class="g-foot">
+          <small>${escapeHtml(item.createdByName || "Équipe")} · ${escapeHtml(formatDate(item.createdAt))}</small>
+          <div class="g-actions">
+            <button
+              class="g-icon-btn ${item.purchased ? "g-icon-btn--undo" : "g-icon-btn--buy"}"
+              type="button"
+              data-gallery-toggle-purchased="${id}"
+              title="${item.purchased ? "Remettre à acheter" : "Marquer comme acheté"}"
+              aria-label="${item.purchased ? "Remettre à acheter" : "Marquer comme acheté"}"
+            >
+              ${renderIcon(item.purchased ? "undo" : "check")}
+            </button>
+            <button
+              class="g-icon-btn g-icon-btn--delete"
+              type="button"
+              data-gallery-delete="${id}"
+              aria-label="Supprimer cette photo"
+              title="Supprimer"
+            >
+              ${renderIcon("delete")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
   `;
 }
 
@@ -2203,117 +2493,103 @@ function renderGalleryTable() {
   const items = ensureTableState("gallery").items;
   refs.galleryPagination.hidden = true;
   refs.galleryPagination.innerHTML = "";
+  pruneBulkSelection("gallery");
 
   const activeTab = refs.galleryTable.dataset.activeTab || "pending";
-
-  const pending = items.filter((i) => !i.purchased);
-  const bought = items.filter((i) => i.purchased);
+  const pending = items.filter((item) => !item.purchased);
+  const bought = items.filter((item) => item.purchased);
   const visibleItems = activeTab === "bought" ? bought : pending;
-
-  const renderGalleryCard = (item) => `
-    <article class="gallery-card${item.purchased ? " gallery-card--bought" : ""}">
-      ${renderProductThumb({
-        imageUrl: item.imageUrl,
-        label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
-        className: "gallery-card-thumb",
-        fallback: "WG",
-        button: true,
-      })}
-      <div class="gallery-card-copy">
-        <p>${escapeHtml(item.createdByName || item.createdByLogin || "Équipe")}</p>
-        <small>${escapeHtml(formatDate(item.createdAt))}</small>
-        <small>${escapeHtml(
-          `${formatNumber(item.width || 0, 0)} × ${formatNumber(item.height || 0, 0)} · ${formatNumber(item.sizeKb || 0, 0)} Ko`,
-        )}</small>
-      </div>
-      <div class="gallery-card-meta">
-        <div class="gallery-card-field">
-          <span>Qté à acheter</span>
-          <input
-            class="gallery-meta-input"
-            type="number"
-            min="1"
-            step="1"
-            value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
-            data-gallery-qty-input="${escapeHtml(item.id)}"
-            aria-label="Quantité à acheter"
-          />
-        </div>
-        <div class="gallery-card-field">
-          <span>Prix magasin EUR</span>
-          <input
-            class="gallery-meta-input"
-            type="number"
-            min="0"
-            step="0.01"
-            value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
-            data-gallery-price-input="${escapeHtml(item.id)}"
-            aria-label="Prix magasin en euro"
-          />
-        </div>
-        <div class="gallery-card-field gallery-card-field--note">
-          <span>Note</span>
-          <textarea
-            class="gallery-meta-input gallery-note-input"
-            rows="2"
-            placeholder="Ajouter une note…"
-            data-gallery-note-input="${escapeHtml(item.id)}"
-            aria-label="Note"
-          >${escapeHtml(item.note ?? "")}</textarea>
-        </div>
-      </div>
-      <div class="gallery-card-actions">
-        <button
-          class="ghost-button wishlist-qty-save"
-          type="button"
-          data-gallery-save="${escapeHtml(item.id)}"
-        >
-          Enregistrer
-        </button>
-        <button
-          class="ghost-button${item.purchased ? " gallery-btn-unpurchase" : " gallery-btn-purchase"}"
-          type="button"
-          data-gallery-toggle-purchased="${escapeHtml(item.id)}"
-          title="${item.purchased ? "Marquer non acheté" : "Marquer comme acheté"}"
-        >
-          ${item.purchased ? "↩ Non acheté" : "✓ Acheté"}
-        </button>
-        <button
-          class="ghost-button table-action-button table-icon-delete"
-          type="button"
-          data-gallery-delete="${escapeHtml(item.id)}"
-          aria-label="Supprimer cette photo"
-          title="Supprimer"
-        >
-          ${renderIcon("delete")}
-        </button>
-      </div>
-    </article>
-  `;
+  const visibleIds = visibleItems.map((item) => item.id);
 
   refs.galleryTable.innerHTML = `
-    <div class="gallery-tabs">
-      <button class="gallery-tab${activeTab === "pending" ? " gallery-tab--active" : ""}" data-gallery-tab="pending">
-        À acheter <span class="gallery-tab-count">${pending.length}</span>
-      </button>
-      <button class="gallery-tab${activeTab === "bought" ? " gallery-tab--active" : ""}" data-gallery-tab="bought">
-        Acheté <span class="gallery-tab-count">${bought.length}</span>
-      </button>
-    </div>
-    <div class="gallery-grid">
-      ${visibleItems.length
-        ? visibleItems.map(renderGalleryCard).join("")
-        : `<p class="gallery-empty">${activeTab === "bought" ? "Aucun article acheté pour le moment." : "Aucune photo en attente d'achat."}</p>`
+    ${renderGallerySummary(pending, bought)}
+    <div class="g-toolbar">
+      <div class="g-tabs" role="tablist">
+        <button class="g-tab${activeTab === "pending" ? " is-active" : ""}" type="button" role="tab" data-gallery-tab="pending">
+          À acheter <b>${pending.length}</b>
+        </button>
+        <button class="g-tab${activeTab === "bought" ? " is-active" : ""}" type="button" role="tab" data-gallery-tab="bought">
+          Acheté <b>${bought.length}</b>
+        </button>
+      </div>
+      ${
+        visibleItems.length
+          ? `<button class="g-select-all" type="button" data-bulk-select-all="${escapeHtml(visibleIds.join(","))}" data-bulk-scope="gallery">Tout sélectionner</button>`
+          : ""
       }
     </div>
+    ${
+      visibleItems.length
+        ? `<div class="g-grid">${visibleItems.map(renderGalleryCard).join("")}</div>`
+        : `<div class="g-empty">
+            <span class="g-empty-icon">${renderIcon("photos")}</span>
+            <strong>${activeTab === "bought" ? "Rien d'acheté pour l'instant" : "Aucune photo à acheter"}</strong>
+            <p>${activeTab === "bought" ? "Les photos marquées « Acheté » apparaissent ici." : "Ajoute des photos de produits repérés en magasin."}</p>
+          </div>`
+    }
   `;
 
-  refs.galleryTable.querySelectorAll("[data-gallery-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      refs.galleryTable.dataset.activeTab = btn.dataset.galleryTab;
-      renderGallerySection();
-    });
+  syncBulkSelectionDom();
+}
+
+function updateGalleryDerived() {
+  const items = ensureTableState("gallery").items;
+  const pending = items.filter((item) => !item.purchased);
+  const total = document.querySelector("[data-gallery-total-pending]");
+
+  if (total) {
+    total.textContent = formatCurrency(sumGallery(pending), "EUR");
+  }
+
+  items.forEach((item) => {
+    const badge = document.querySelector(`[data-gallery-line-total="${item.id}"]`);
+
+    if (badge) {
+      const line = Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0);
+      badge.textContent = formatCurrency(line, "EUR");
+      badge.hidden = line <= 0;
+    }
   });
+}
+
+async function saveGalleryField(galleryItemId, patch) {
+  const item = getTableRecord("gallery", galleryItemId);
+
+  if (!item) {
+    return;
+  }
+
+  try {
+    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
+      method: "PATCH",
+      body: patch,
+    });
+    Object.assign(item, patch);
+    updateGalleryDerived();
+    showFlash("Enregistré.");
+    return result;
+  } catch (error) {
+    showFlash(error.message, "error");
+    await refreshTableData(["gallery"]);
+  }
+}
+
+function handleGalleryFieldChange(event) {
+  const qtyInput = event.target.closest("[data-gallery-qty-input]");
+  const priceInput = event.target.closest("[data-gallery-price-input]");
+  const noteInput = event.target.closest("[data-gallery-note-input]");
+
+  if (qtyInput) {
+    const value = Math.max(1, Math.round(Number(qtyInput.value) || 1));
+    qtyInput.value = String(value);
+    void saveGalleryField(qtyInput.dataset.galleryQtyInput, { desiredQty: value });
+  } else if (priceInput) {
+    const value = Math.max(0, Number(priceInput.value) || 0);
+    priceInput.value = String(value);
+    void saveGalleryField(priceInput.dataset.galleryPriceInput, { foundPriceEur: value });
+  } else if (noteInput) {
+    void saveGalleryField(noteInput.dataset.galleryNoteInput, { note: noteInput.value.slice(0, 500) });
+  }
 }
 
 function renderAvailableProducts() {
@@ -4854,7 +5130,10 @@ async function handleGalleryUpload(event) {
   }
 
   try {
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
+      if (refs.galleryUploadButton) {
+        refs.galleryUploadButton.textContent = `Envoi ${index + 1}/${files.length}…`;
+      }
       const upload = await compressImageUpload(file, "wishlist-gallery", {
         maxDimension: 900,
         quality: 0.68,
@@ -4886,6 +5165,7 @@ async function handleGalleryUpload(event) {
 
     if (refs.galleryUploadButton) {
       refs.galleryUploadButton.disabled = false;
+      refs.galleryUploadButton.textContent = "Ajouter des photos";
     }
   }
 }
@@ -4918,34 +5198,6 @@ async function handleGalleryTogglePurchased(galleryItemId) {
     const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
       method: "PATCH",
       body: { togglePurchased: true },
-    });
-    Object.assign(state, result.appState);
-    await refreshTableData(["gallery"]);
-    showFlash(result.message);
-  } catch (error) {
-    showFlash(error.message, "error");
-  }
-}
-
-async function handleGalleryMetaUpdate(galleryItemId, desiredQty, foundPriceEur, note = "") {
-  if (!Number.isInteger(desiredQty) || desiredQty < 1) {
-    showFlash("La quantité à acheter doit être au moins de 1.", "error");
-    return;
-  }
-
-  if (!Number.isFinite(foundPriceEur) || foundPriceEur < 0) {
-    showFlash("Le prix magasin EUR doit être supérieur ou égal à 0.", "error");
-    return;
-  }
-
-  try {
-    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
-      method: "PATCH",
-      body: {
-        desiredQty,
-        foundPriceEur,
-        note,
-      },
     });
     Object.assign(state, result.appState);
     await refreshTableData(["gallery"]);
@@ -5435,7 +5687,101 @@ async function handleTableFilterReset(button) {
   }
 }
 
+function setTabbarSheet(open) {
+  const sheet = document.querySelector("#tabbar-sheet");
+  const fab = document.querySelector("#tabbar-fab");
+
+  if (!sheet) {
+    return;
+  }
+
+  sheet.hidden = !open;
+  fab?.setAttribute("aria-expanded", open ? "true" : "false");
+  fab?.classList.toggle("is-open", open);
+}
+
 function handleDocumentClick(event) {
+  const tabbarFab = event.target.closest("#tabbar-fab");
+
+  if (tabbarFab) {
+    setTabbarSheet(document.querySelector("#tabbar-sheet")?.hidden === true);
+    return;
+  }
+
+  if (event.target.closest("[data-tabbar-close]")) {
+    setTabbarSheet(false);
+  }
+
+  const bulkToggleButton = event.target.closest("[data-bulk-toggle]");
+
+  if (bulkToggleButton) {
+    const [scope, id] = bulkToggleButton.dataset.bulkToggle.split(":");
+    toggleBulkItem(scope, id);
+    return;
+  }
+
+  const bulkCard = event.target.closest("[data-bulk-card]");
+
+  if (bulkCard && event.target.closest("[data-image-src]")) {
+    const [scope, id] = bulkCard.dataset.bulkCard.split(":");
+
+    if (bulkSelection[scope]?.size) {
+      event.preventDefault();
+      toggleBulkItem(scope, id);
+      return;
+    }
+  }
+
+  const bulkSelectAllButton = event.target.closest("[data-bulk-select-all]");
+
+  if (bulkSelectAllButton) {
+    const [scope] = (bulkSelectAllButton.dataset.bulkScope || "").split(":");
+    const ids = bulkSelectAllButton.dataset.bulkSelectAll.split(",").filter(Boolean);
+    const allSelected = ids.every((id) => bulkSelection[scope]?.has(id));
+
+    ids.forEach((id) => (allSelected ? bulkSelection[scope].delete(id) : bulkSelection[scope].add(id)));
+    syncBulkSelectionDom();
+    return;
+  }
+
+  const bulkClearButton = event.target.closest("[data-bulk-clear]");
+
+  if (bulkClearButton) {
+    bulkSelection.gallery.clear();
+    bulkSelection.wishlist.clear();
+    syncBulkSelectionDom();
+    return;
+  }
+
+  const bulkActionButton = event.target.closest("[data-bulk-action]");
+
+  if (bulkActionButton) {
+    void runBulkAction(bulkActionButton.dataset.bulkAction);
+    return;
+  }
+
+  const galleryTabButton = event.target.closest("[data-gallery-tab]");
+
+  if (galleryTabButton) {
+    refs.galleryTable.dataset.activeTab = galleryTabButton.dataset.galleryTab;
+    bulkSelection.gallery.clear();
+    renderGalleryTable();
+    return;
+  }
+
+  const galleryStepButton = event.target.closest("[data-gallery-step]");
+
+  if (galleryStepButton) {
+    const [id, delta] = galleryStepButton.dataset.galleryStep.split(":");
+    const input = document.querySelector(`[data-gallery-qty-input="${id}"]`);
+
+    if (input) {
+      input.value = String(Math.max(1, (Number.parseInt(input.value, 10) || 1) + Number(delta)));
+      handleGalleryFieldChange({ target: input });
+    }
+    return;
+  }
+
   const topbarSidebarToggle = event.target.closest("#topbar-sidebar-toggle");
 
   if (topbarSidebarToggle) {
@@ -5613,26 +5959,6 @@ function handleDocumentClick(event) {
 
   if (galleryTogglePurchasedButton) {
     void handleGalleryTogglePurchased(galleryTogglePurchasedButton.dataset.galleryTogglePurchased);
-    return;
-  }
-
-  const gallerySaveButton = event.target.closest("[data-gallery-save]");
-
-  if (gallerySaveButton) {
-    const galleryCard = gallerySaveButton.closest(".gallery-card");
-    const qtyInput = galleryCard?.querySelector("[data-gallery-qty-input]");
-    const priceInput = galleryCard?.querySelector("[data-gallery-price-input]");
-    const noteInput = galleryCard?.querySelector("[data-gallery-note-input]");
-    const desiredQty = Number.parseInt(qtyInput?.value || "0", 10);
-    const foundPriceEur = Number(priceInput?.value || "0");
-    const note = noteInput?.value ?? "";
-
-    void handleGalleryMetaUpdate(
-      gallerySaveButton.dataset.gallerySave,
-      desiredQty,
-      foundPriceEur,
-      note,
-    );
     return;
   }
 
@@ -6008,6 +6334,7 @@ function bindEvents() {
   });
 
   document.addEventListener("click", handleDocumentClick);
+  document.addEventListener("change", handleGalleryFieldChange);
   document.addEventListener("keydown", handleDocumentKeydown);
   document.addEventListener("change", handleDocumentChange);
   refs.shipmentForm.addEventListener("input", handleFormInput);

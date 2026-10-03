@@ -109,3 +109,21 @@ git commit -m "Prepare Render and Neon deployment"
 git remote add origin https://github.com/TON-USER/action-bla-ghla-admin.git
 git push -u origin main
 ```
+
+## Application installable (PWA)
+
+L'app s'installe sur l'écran d'accueil du téléphone et du bureau, et s'ouvre en plein écran :
+
+- **Android / Chrome / Edge (bureau)** : bouton « Installer » (bannière dans l'app, ou menu du navigateur).
+- **iPhone / iPad (Safari)** : Partager → « Sur l'écran d'accueil ».
+
+Fichiers : `public/manifest.webmanifest`, `public/sw.js` (service worker), `public/offline.html`,
+`public/pwa.js` (enregistrement + invitation à installer), icônes dans `public/icons/` et splash iOS dans `public/splash/`.
+Le service worker ne met jamais `/api` en cache. Pour forcer une mise à jour du cache, change `VERSION` dans `public/sw.js`.
+
+## Wishlist Gallery : actions groupées
+
+Dans la galerie (et la wishlist produits), touche le rond en haut à gauche d'une carte pour sélectionner
+plusieurs éléments. Une barre flottante propose : **Acheté**, **À acheter** (onglet Acheté) et **Supprimer**.
+API : `POST /api/gallery-items/bulk` et `POST /api/wishlist/bulk` avec `{ ids: [...], action: "purchase" | "unpurchase" | "delete" }`.
+Aucune migration de base : les données restent dans le document JSON existant.
