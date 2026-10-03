@@ -32,7 +32,8 @@ const port = process.env.PORT || 3000;
 const SESSION_COOKIE_NAME = "abg_session";
 const CATALOG_VISITOR_COOKIE_NAME = "abg_catalog";
 const ANALYTICS_RETENTION_DAYS = 120;
-const sessions = new Map();
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const sessionSecret = resolveSessionSecret();
 
 const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
 const orderStockStatuses = new Set(["stock_disponible", "precommande"]);
@@ -123,6 +124,10 @@ function createCookie(name, value, options = {}) {
 
   parts.push("Path=/");
   parts.push(`SameSite=${options.sameSite || "Lax"}`);
+
+  if (options.secure) {
+    parts.push("Secure");
+  }
 
   if (options.maxAge !== undefined) {
     parts.push(`Max-Age=${options.maxAge}`);
@@ -254,19 +259,75 @@ async function trackCatalogVisit(request, response) {
   });
 }
 
+function resolveSessionSecret() {
+  const configured = String(process.env.SESSION_SECRET || "").trim();
+
+  if (configured.length >= 16) {
+    return configured;
+  }
+
+  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+
+  if (databaseUrl) {
+    console.warn(
+      "[auth] SESSION_SECRET absent : secret dérivé de DATABASE_URL. Définis SESSION_SECRET (16+ caractères).",
+    );
+    return crypto.createHash("sha256").update(`abg-session:${databaseUrl}`).digest("hex");
+  }
+
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function passwordVersion(user) {
+  return crypto
+    .createHash("sha256")
+    .update(String(user?.passwordHash || ""))
+    .digest("hex")
+    .slice(0, 12);
+}
+
+function signSessionToken(payload) {
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto.createHmac("sha256", sessionSecret).update(body).digest("base64url");
+  return `${body}.${signature}`;
+}
+
+function readSessionToken(token) {
+  const [body, signature] = String(token || "").split(".");
+
+  if (!body || !signature) {
+    return null;
+  }
+
+  const expected = crypto.createHmac("sha256", sessionSecret).update(body).digest("base64url");
+  const given = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+
+  if (given.length !== wanted.length || !crypto.timingSafeEqual(given, wanted)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    return payload && payload.exp > Date.now() ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
 function getSessionToken(request) {
   return parseCookies(request.headers.cookie)[SESSION_COOKIE_NAME] || "";
 }
 
 function getAuthenticatedUser(request, store) {
-  const sessionToken = getSessionToken(request);
-  const session = sessions.get(sessionToken);
+  const session = readSessionToken(getSessionToken(request));
 
   if (!session) {
     return null;
   }
 
-  return store.users.find((user) => user.id === session.userId) || null;
+  const user = store.users.find((entry) => entry.id === session.sub);
+  return user && session.pv === passwordVersion(user) ? user : null;
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -292,31 +353,29 @@ function canManageUsers(user) {
   return Boolean(user && (user.isAdmin === true || user.login === "mdotnani"));
 }
 
-function startSession(response, userId) {
-  const sessionToken = crypto.randomUUID();
-  sessions.set(sessionToken, {
-    userId,
-    createdAt: new Date().toISOString(),
+const SECURE_COOKIES = process.env.NODE_ENV === "production";
+
+function startSession(response, user) {
+  const sessionToken = signSessionToken({
+    sub: user.id,
+    pv: passwordVersion(user),
+    exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
   });
   response.setHeader(
     "Set-Cookie",
     createCookie(SESSION_COOKIE_NAME, sessionToken, {
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: SESSION_MAX_AGE_SECONDS,
+      secure: SECURE_COOKIES,
     }),
   );
 }
 
-function endSession(request, response) {
-  const sessionToken = getSessionToken(request);
-
-  if (sessionToken) {
-    sessions.delete(sessionToken);
-  }
-
+function endSession(_request, response) {
   response.setHeader(
     "Set-Cookie",
     createCookie(SESSION_COOKIE_NAME, "", {
       maxAge: 0,
+      secure: SECURE_COOKIES,
     }),
   );
 }
@@ -1595,7 +1654,7 @@ app.post(
     });
 
     const user = nextStore.users[0];
-    startSession(response, user.id);
+    startSession(response, user);
     response.status(201).json({
       message: "Compte créé et connecté.",
       user: sanitizeUser(user),
@@ -1621,7 +1680,7 @@ app.post(
       throw createValidationError("Identifiant ou mot de passe incorrect.");
     }
 
-    startSession(response, user.id);
+    startSession(response, user);
     response.json({
       message: "Connexion réussie.",
       user: sanitizeUser(user),
@@ -2793,13 +2852,18 @@ app.use((error, _request, response, _next) => {
   });
 });
 
-readStore()
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`App running on http://localhost:${port}`);
+// Sur Vercel l'app est exposée comme fonction (api/index.js) : pas de app.listen.
+if (!process.env.VERCEL) {
+  readStore()
+    .then(() => {
+      app.listen(port, () => {
+        console.log(`App running on http://localhost:${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Failed to initialize store", error);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error("Failed to initialize store", error);
-    process.exit(1);
-  });
+}
+
+export default app;

@@ -127,3 +127,17 @@ Dans la galerie (et la wishlist produits), touche le rond en haut à gauche d'un
 plusieurs éléments. Une barre flottante propose : **Acheté**, **À acheter** (onglet Acheté) et **Supprimer**.
 API : `POST /api/gallery-items/bulk` et `POST /api/wishlist/bulk` avec `{ ids: [...], action: "purchase" | "unpurchase" | "delete" }`.
 Aucune migration de base : les données restent dans le document JSON existant.
+
+## Déploiement sur Vercel
+
+L'app Express est exposée comme fonction Vercel (`api/index.js` + `vercel.json`) : pas de mise en veille de 50 s comme sur l'offre gratuite de Render.
+
+1. Vercel → **Add New → Project** → importer le dépôt GitHub (preset « Other », aucune commande de build).
+2. Variables d'environnement :
+   - `DATABASE_URL` : la même chaîne Neon que sur Render (les données sont conservées, c'est la même base)
+   - `ALLOW_LOCAL_STORE_FALLBACK` = `false` (le disque de Vercel est en lecture seule)
+   - `SESSION_SECRET` : une longue valeur aléatoire (les connexions sont des cookies signés, plus gardées en mémoire)
+3. Project Settings → Functions → **Region** : choisir la même région que la base Neon (latence).
+4. Deploy. Les utilisateurs devront se reconnecter une fois lors du changement.
+
+Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées côté navigateur).
