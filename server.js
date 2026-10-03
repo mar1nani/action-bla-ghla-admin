@@ -380,12 +380,34 @@ function endSession(_request, response) {
   );
 }
 
+function buildTodoCounts(store) {
+  const gallery = store.galleryItems ?? [];
+  const wishlist = store.wishlist ?? [];
+
+  return {
+    galleryPending: gallery.filter((item) => !item.purchased).length,
+    galleryBought: gallery.filter((item) => item.purchased).length,
+    wishlistPending: wishlist.filter((entry) => !entry.purchased).length,
+    wishlistBought: wishlist.filter((entry) => entry.purchased).length,
+  };
+}
+
+// Ne supprime le fichier d'une photo que si aucun produit ne l'utilise (photo convertie en produit).
+async function removeGalleryImage(store, imageUrl) {
+  if (!imageUrl || (store.products ?? []).some((product) => product.imageUrl === imageUrl)) {
+    return;
+  }
+
+  await removeProductImage(imageUrl);
+}
+
 function buildPublicState(store, request) {
   const state = buildAppState(store);
   const user = getAuthenticatedUser(request, store);
 
   return {
     ...state,
+    todo: buildTodoCounts(store),
     auth: {
       isAuthenticated: Boolean(user),
       requiresSetup: store.users.length === 0,
@@ -2154,6 +2176,63 @@ app.post(
   }),
 );
 
+app.post(
+  "/api/gallery-items/:galleryItemId/to-product",
+  asyncRoute(async (request, response) => {
+    const nextStore = await updateStore((store) => {
+      const user = getAuthenticatedUser(request, store);
+      const galleryIndex = (store.galleryItems ?? []).findIndex(
+        (entry) => entry.id === request.params.galleryItemId,
+      );
+
+      if (galleryIndex === -1) {
+        throw createNotFoundError("Photo galerie introuvable.");
+      }
+
+      const photo = store.galleryItems[galleryIndex];
+      const productName = requireString(request.body.name, "Nom du produit");
+      assertUniqueProductName(store, productName);
+
+      const product = {
+        id: createId("prd"),
+        name: productName,
+        weightKg: requireNumber(request.body.weightG, "Poids (g)", { min: 1 }) / 1000,
+        defaultPurchasePriceEur: Math.max(0, Number(photo.foundPriceEur || 0)),
+        defaultSalePriceMad: requireNumber(request.body.salePriceMad, "Prix de vente MAD", {
+          min: 0,
+        }),
+        minStockAlert: store.settings?.lowStockDefault ?? 2,
+        imageUrl: photo.imageUrl,
+        notes: optionalString(photo.note),
+        createdAt: new Date().toISOString(),
+      };
+
+      store.products.push(product);
+      store.wishlist = store.wishlist ?? [];
+      store.wishlist.push({
+        id: createId("wish"),
+        productId: product.id,
+        desiredQty: Math.max(1, Number(photo.desiredQty || 1)),
+        purchased: Boolean(photo.purchased),
+        purchasedAt: photo.purchased ? new Date().toISOString() : null,
+        createdAt: new Date().toISOString(),
+        createdByLogin: user?.login || photo.createdByLogin || "",
+        createdByName: user?.displayName || user?.login || photo.createdByName || "Équipe",
+        notes: "",
+      });
+
+      // La photo devient l'image du produit : on la retire de la galerie sans supprimer le fichier.
+      store.galleryItems.splice(galleryIndex, 1);
+      return store;
+    });
+
+    response.status(201).json({
+      message: "Produit créé et ajouté à « Produits à acheter ».",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
 const BULK_ACTIONS = new Set(["purchase", "unpurchase", "delete"]);
 
 function readBulkRequest(body) {
@@ -2191,7 +2270,7 @@ app.post(
         affected = removed.length;
         store.galleryItems = items.filter((entry) => !selected.has(entry.id));
         for (const entry of removed) {
-          await removeProductImage(entry.imageUrl);
+          await removeGalleryImage(store, entry.imageUrl);
         }
         return store;
       }
@@ -2361,7 +2440,7 @@ app.delete(
       }
 
       const [galleryItem] = store.galleryItems.splice(galleryIndex, 1);
-      await removeProductImage(galleryItem?.imageUrl);
+      await removeGalleryImage(store, galleryItem?.imageUrl);
       return store;
     });
 

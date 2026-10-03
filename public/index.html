@@ -8,7 +8,7 @@
       name="description"
       content="Application de gestion de stock, achats, envois vers le Maroc, commandes clients et statistiques."
     />
-    <meta name="theme-color" content="#0b2f66" />
+    <meta name="theme-color" content="#08303a" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -80,7 +80,7 @@
             href="/"
             class="sidebar-link"
             data-section-link="dashboard"
-            title="Tableau de bord"
+            title="Aujourd'hui"
           >
             <span class="sidebar-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -90,7 +90,7 @@
                 <rect x="14" y="16" width="7" height="5" rx="2"></rect>
               </svg>
             </span>
-            <span class="sidebar-label">Tableau de bord</span>
+            <span class="sidebar-label">Aujourd'hui</span>
           </a>
           <a
             href="/products"
@@ -116,13 +116,13 @@
                 ></path>
               </svg>
             </span>
-            <span class="sidebar-label">Produits</span>
+            <span class="sidebar-label">Stock &amp; produits</span>
           </a>
           <a
             href="/wishlist"
             class="sidebar-link"
             data-section-link="wishlist"
-            title="Wishlist"
+            title="Produits à acheter"
           >
             <span class="sidebar-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -136,13 +136,13 @@
                 ></path>
               </svg>
             </span>
-            <span class="sidebar-label">Wishlist</span>
+            <span class="sidebar-label">Produits à acheter</span>
           </a>
           <a
             href="/wishlist-gallery"
             class="sidebar-link"
             data-section-link="gallery"
-            title="Wishlist Gallery"
+            title="Photos à acheter"
           >
             <span class="sidebar-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -167,13 +167,13 @@
                 ></path>
               </svg>
             </span>
-            <span class="sidebar-label">Wishlist Gallery</span>
+            <span class="sidebar-label">Photos à acheter</span>
           </a>
           <a
             href="/available-stock"
             class="sidebar-link"
             data-section-link="available"
-            title="Stock disponible"
+            title="Dispo au Maroc"
           >
             <span class="sidebar-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -195,7 +195,7 @@
                 ></path>
               </svg>
             </span>
-            <span class="sidebar-label">Stock dispo</span>
+            <span class="sidebar-label">Dispo au Maroc</span>
           </a>
           <a
             href="/purchases"
@@ -513,11 +513,16 @@
         <section id="dashboard" class="section dashboard-section">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Vue globale</p>
-              <h3>Pilotage rapide</h3>
+              <p class="eyebrow" id="today-date">Aujourd'hui</p>
+              <h3 id="today-title">Ce qu'il y a à faire</h3>
             </div>
           </div>
-          <div id="dashboard-cards" class="metric-grid"></div>
+          <div id="today-actions" class="today-actions"></div>
+          <div id="today-key" class="today-key"></div>
+          <details class="all-figures">
+            <summary>Voir tous les chiffres</summary>
+            <div id="dashboard-cards" class="metric-grid"></div>
+          </details>
           <div class="dashboard-main-grid">
             <article class="panel dashboard-panel">
               <div class="section-head">
@@ -583,6 +588,10 @@
         </section>
 
         <section id="products" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/products" data-section-link="products">Catalogue</a>
+            <a href="/available-stock" data-section-link="available">Dispo au Maroc</a>
+          </nav>
           <article class="panel">
             <div class="section-head section-head-actions">
               <div>
@@ -761,6 +770,10 @@
         </section>
 
         <section id="purchases" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/purchases" data-section-link="purchases">Achats</a>
+            <a href="/shipments" data-section-link="shipments">Envois</a>
+          </nav>
           <article class="panel">
             <div class="section-head section-head-actions">
               <div>
@@ -903,6 +916,10 @@
         </section>
 
         <section id="shipments" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/purchases" data-section-link="purchases">Achats</a>
+            <a href="/shipments" data-section-link="shipments">Envois</a>
+          </nav>
           <article class="panel">
             <div class="section-head section-head-actions">
               <div>
@@ -1185,6 +1202,10 @@
         </section>
 
         <section id="wishlist" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/wishlist-gallery" data-section-link="gallery">Photos</a>
+            <a href="/wishlist" data-section-link="wishlist">Produits</a>
+          </nav>
           <article class="panel">
             <div class="section-head">
               <div>
@@ -1203,6 +1224,10 @@
         </section>
 
         <section id="gallery" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/wishlist-gallery" data-section-link="gallery">Photos</a>
+            <a href="/wishlist" data-section-link="wishlist">Produits</a>
+          </nav>
           <article class="panel gallery-panel">
             <div class="section-head gallery-head">
               <div>
@@ -1229,6 +1254,10 @@
         </section>
 
         <section id="available" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/products" data-section-link="products">Catalogue</a>
+            <a href="/available-stock" data-section-link="available">Dispo au Maroc</a>
+          </nav>
           <article class="panel panel-showcase">
             <div class="section-head">
               <div>
@@ -1366,34 +1395,31 @@
           </div>
         </div>
 
-        <nav class="tabbar" aria-label="Navigation mobile principale">
-          <a href="/" class="tabbar-link" data-section-link="dashboard" title="Tableau de bord">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="10" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="16" width="7" height="5" rx="2"></rect></svg>
-            <span>Accueil</span>
+        <nav class="tabbar" aria-label="Navigation principale">
+          <a href="/" class="tabbar-link" data-section-link="dashboard" title="Aujourd'hui">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a2 2 0 01-2 2h-3v-6H9v6H6a2 2 0 01-2-2v-8z"></path></svg>
+            <span>Aujourd'hui</span>
           </a>
-          <a href="/products" class="tabbar-link" data-section-link="products" title="Produits">
+          <a href="/wishlist-gallery" class="tabbar-link" data-section-link="gallery" data-tab-groups="gallery wishlist" title="À acheter">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 12H7L6 7z"></path><path d="M9 9V7a3 3 0 016 0v2"></path></svg>
+            <span>À acheter</span>
+          </a>
+          <a href="/products" class="tabbar-link" data-section-link="products" data-tab-groups="products available" title="Stock">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"></path><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"></path></svg>
-            <span>Produits</span>
+            <span>Stock</span>
           </a>
-          <button id="tabbar-fab" class="tabbar-fab" type="button" aria-label="Ajouter" aria-haspopup="menu" aria-expanded="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
-          </button>
-          <a href="/wishlist-gallery" class="tabbar-link" data-section-link="gallery" title="Wishlist Gallery">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-8 8"></path></svg>
-            <span>Galerie</span>
+          <a href="/shipments" class="tabbar-link" data-section-link="shipments" data-tab-groups="shipments purchases" title="Envois">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17" r="1.8"></circle><circle cx="17" cy="17" r="1.8"></circle></svg>
+            <span>Envois</span>
           </a>
-          <button
-            id="mobile-nav-menu-toggle"
-            class="tabbar-link tabbar-link-button"
-            type="button"
-            aria-expanded="false"
-            aria-label="Ouvrir le menu"
-            title="Menu"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
-            <span>Menu</span>
-          </button>
+          <a href="/orders" class="tabbar-link" data-section-link="orders" title="Ventes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"></path></svg>
+            <span>Ventes</span>
+          </a>
         </nav>
+        <button id="tabbar-fab" class="tabbar-fab" type="button" aria-label="Ajouter" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
 
         <div id="shipment-details-modal" class="modal-shell" hidden>
           <div class="modal-backdrop" data-close-modal="shipment-details-modal"></div>
@@ -1449,6 +1475,40 @@
               ×
             </button>
             <img id="image-viewer-target" class="image-viewer-target" alt="Agrandissement produit" />
+          </article>
+        </div>
+
+        <div id="photo-product-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="photo-product-modal"></div>
+          <article class="panel modal-panel">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">Photo → Produit</p>
+                <h3>Créer le produit</h3>
+              </div>
+              <button class="modal-close" type="button" data-close-modal="photo-product-modal" aria-label="Fermer la fenêtre">×</button>
+            </div>
+            <form id="photo-product-form" class="stack-form">
+              <input type="hidden" name="galleryItemId" />
+              <div class="photo-product-preview"><img id="photo-product-img" alt="" /></div>
+              <label class="field">
+                <span>Nom du produit</span>
+                <input name="name" type="text" required placeholder="Ex. Spray multi-usages 750 ml" />
+              </label>
+              <div class="field-row">
+                <label class="field field-compact-sm">
+                  <span>Poids (g)</span>
+                  <input name="weightG" type="number" min="1" step="1" inputmode="numeric" required placeholder="500" />
+                </label>
+                <label class="field field-compact-sm">
+                  <span>Prix de vente MAD</span>
+                  <input name="salePriceMad" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="0" />
+                </label>
+              </div>
+              <p id="photo-product-hint" class="photo-product-hint"></p>
+              <p id="photo-product-error" class="form-error" hidden></p>
+              <button class="primary-button" type="submit">Créer le produit</button>
+            </form>
           </article>
         </div>
 

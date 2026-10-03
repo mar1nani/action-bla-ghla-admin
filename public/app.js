@@ -115,23 +115,23 @@ let activeShipmentSourcePurchaseIds = [];
 const PAGE_CONFIG = {
   dashboard: {
     path: "/",
-    documentTitle: "Tableau de bord",
+    documentTitle: "Aujourd'hui",
   },
   products: {
     path: "/products",
-    documentTitle: "Produits",
+    documentTitle: "Stock & produits",
   },
   wishlist: {
     path: "/wishlist",
-    documentTitle: "Wishlist",
+    documentTitle: "Produits à acheter",
   },
   gallery: {
     path: "/wishlist-gallery",
-    documentTitle: "Wishlist Gallery",
+    documentTitle: "Photos à acheter",
   },
   available: {
     path: "/available-stock",
-    documentTitle: "Stock disponible",
+    documentTitle: "Dispo au Maroc",
   },
   purchases: {
     path: "/purchases",
@@ -143,7 +143,7 @@ const PAGE_CONFIG = {
   },
   orders: {
     path: "/orders",
-    documentTitle: "Commandes",
+    documentTitle: "Ventes",
   },
   stats: {
     path: "/stats",
@@ -167,6 +167,9 @@ const refs = {
   sidebarBackdrop: document.querySelector("#sidebar-backdrop"),
   sectionLinks: [...document.querySelectorAll("[data-section-link]")],
   mobileNavMenuToggle: document.querySelector("#mobile-nav-menu-toggle"),
+  todayActions: document.querySelector("#today-actions"),
+  todayKey: document.querySelector("#today-key"),
+  todayDate: document.querySelector("#today-date"),
   mobileQuickCreateToggle: document.querySelector("#mobile-quick-create-toggle"),
   sidebarQuickCreateToggle: document.querySelector("#sidebar-quick-create-toggle"),
   sidebarQuickCreateMenu: document.querySelector("#sidebar-quick-create-menu"),
@@ -508,6 +511,15 @@ function setActiveSectionLink(sectionId) {
     }
 
     link.removeAttribute("aria-current");
+  });
+
+  document.querySelectorAll("[data-tab-groups]").forEach((tab) => {
+    const isActive = tab.dataset.tabGroups.split(" ").includes(sectionId);
+    tab.classList.toggle("is-active", isActive);
+
+    if (isActive) {
+      tab.setAttribute("aria-current", "page");
+    }
   });
 }
 
@@ -2221,6 +2233,7 @@ Object.assign(ICONS, {
   plus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>`,
   minus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>`,
   close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`,
+  product: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21 4 16.5v-9L12 3z"></path><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"></path></svg>`,
   photos: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M21 16l-5-5-8 8"></path></svg>`,
 });
 
@@ -2468,6 +2481,15 @@ function renderGalleryCard(item) {
               aria-label="${item.purchased ? "Remettre à acheter" : "Marquer comme acheté"}"
             >
               ${renderIcon(item.purchased ? "undo" : "check")}
+            </button>
+            <button
+              class="g-icon-btn g-icon-btn--product"
+              type="button"
+              data-gallery-to-product="${id}"
+              title="Créer un produit à partir de cette photo"
+              aria-label="Créer un produit à partir de cette photo"
+            >
+              ${renderIcon("product")}
             </button>
             <button
               class="g-icon-btn g-icon-btn--delete"
@@ -3396,6 +3418,7 @@ function renderAll() {
   syncTableFilterForms();
   applyPageLayout();
   renderDashboardCards();
+  renderTodayActions();
   renderLowStock();
   renderActivity();
   renderProductsTable();
@@ -5687,6 +5710,216 @@ async function handleTableFilterReset(button) {
   }
 }
 
+function formatTodayLabel() {
+  try {
+    return new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  } catch {
+    return "Aujourd'hui";
+  }
+}
+
+function plural(count, one, many) {
+  return `${formatNumber(count, 0)} ${count > 1 ? many : one}`;
+}
+
+function renderTodayActions() {
+  if (!refs.todayActions || !refs.todayKey) {
+    return;
+  }
+
+  const todo = state.todo ?? {};
+  const totals = state.dashboard?.totals ?? {};
+  const shipmentsOnTheWay = (state.shipments ?? []).filter((shipment) => shipment.status !== "recu").length;
+  const ordersToDeliver = (state.orders ?? []).filter((order) => order.status === "confirmee").length;
+  const lowStock = (state.dashboard?.lowStockProducts ?? []).length;
+  const franceStock = Number(totals.totalFranceStock || 0);
+
+  const actions = [
+    {
+      tone: "buy",
+      icon: "🛒",
+      show: todo.wishlistBought > 0,
+      title: plural(todo.wishlistBought, "produit acheté", "produits achetés"),
+      hint: "À enregistrer en achat fournisseur",
+      cta: "Créer l'achat",
+      go: "/wishlist",
+    },
+    {
+      tone: "photo",
+      icon: "📸",
+      show: todo.galleryBought > 0,
+      title: plural(todo.galleryBought, "photo achetée", "photos achetées"),
+      hint: "Transforme-les en produits",
+      cta: "Voir les photos",
+      go: "/wishlist-gallery",
+      tab: "bought",
+    },
+    {
+      tone: "ship",
+      icon: "📦",
+      show: franceStock > 0,
+      title: plural(franceStock, "article en France", "articles en France"),
+      hint: "Prêts à être envoyés au Maroc",
+      cta: "Préparer l'envoi",
+      go: "/purchases",
+    },
+    {
+      tone: "road",
+      icon: "🚚",
+      show: shipmentsOnTheWay > 0,
+      title: plural(shipmentsOnTheWay, "colis en route", "colis en route"),
+      hint: "Marque-les reçus à l'arrivée",
+      cta: "Suivre",
+      go: "/shipments",
+    },
+    {
+      tone: "deliver",
+      icon: "🏠",
+      show: ordersToDeliver > 0,
+      title: plural(ordersToDeliver, "commande à livrer", "commandes à livrer"),
+      hint: "Confirmées, pas encore livrées",
+      cta: "Voir",
+      go: "/orders",
+    },
+    {
+      tone: "money",
+      icon: "💰",
+      show: Number(totals.totalUnpaidOrders || 0) > 0,
+      title: `${formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD")} à encaisser`,
+      hint: plural(totals.totalUnpaidOrders ?? 0, "commande impayée", "commandes impayées"),
+      cta: "Relancer",
+      go: "/orders",
+    },
+    {
+      tone: "alert",
+      icon: "⚠️",
+      show: lowStock > 0,
+      title: plural(lowStock, "produit bientôt en rupture", "produits bientôt en rupture"),
+      hint: "Sous le seuil de stock faible",
+      cta: "Voir le stock",
+      go: "/products",
+    },
+  ].filter((action) => action.show);
+
+  if (refs.todayDate) {
+    refs.todayDate.textContent = formatTodayLabel();
+  }
+
+  refs.todayActions.innerHTML = actions.length
+    ? actions
+        .map(
+          (action) => `
+            <article class="today-card is-${action.tone}">
+              <span class="today-icon" aria-hidden="true">${action.icon}</span>
+              <div class="today-copy">
+                <strong>${escapeHtml(action.title)}</strong>
+                <small>${escapeHtml(action.hint)}</small>
+              </div>
+              <button
+                class="today-cta"
+                type="button"
+                data-today-go="${escapeHtml(action.go)}"
+                ${action.tab ? `data-today-tab="${escapeHtml(action.tab)}"` : ""}
+              >
+                ${escapeHtml(action.cta)}
+              </button>
+            </article>
+          `,
+        )
+        .join("")
+    : `<article class="today-card is-done">
+        <span class="today-icon" aria-hidden="true">✅</span>
+        <div class="today-copy"><strong>Tout est à jour</strong><small>Rien à traiter pour l'instant.</small></div>
+      </article>`;
+
+  const keyTiles = [
+    { label: "Stock au Maroc", value: formatNumber(totals.totalMoroccoStock ?? 0, 0), note: `Coût ${formatCurrency(totals.totalMoroccoStockCostMad ?? 0, "MAD")}` },
+    { label: "Ventes", value: formatCurrency(totals.totalRevenueWithUnpaidMad ?? 0, "MAD"), note: "chiffre d'affaires" },
+    { label: "Bénéfice", value: formatCurrency(totals.totalProfitMad ?? 0, "MAD"), note: "avec impayés" },
+    { label: "À encaisser", value: formatCurrency(totals.outstandingRevenueMad ?? 0, "MAD"), note: plural(totals.totalUnpaidOrders ?? 0, "commande", "commandes") },
+  ];
+
+  refs.todayKey.innerHTML = keyTiles
+    .map(
+      (tile) => `
+        <article class="key-tile">
+          <span>${escapeHtml(tile.label)}</span>
+          <strong>${escapeHtml(tile.value)}</strong>
+          <small>${escapeHtml(tile.note)}</small>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function updatePhotoProductHint() {
+  const form = document.querySelector("#photo-product-form");
+  const hint = document.querySelector("#photo-product-hint");
+  const item = getTableRecord("gallery", form?.elements.galleryItemId.value);
+
+  if (!form || !hint || !item) {
+    return;
+  }
+
+  const weightKg = (Number(form.elements.weightG.value) || 0) / 1000;
+  const purchaseEur = Number(item.foundPriceEur || 0);
+  const transportEur = weightKg * Number(state.settings.transportRatePerKgEur || 0);
+  const landedMad = (purchaseEur + transportEur) * Number(state.settings.eurToMad || 0);
+
+  hint.textContent = weightKg
+    ? `Coût estimé au Maroc : ${formatCurrency(landedMad, "MAD")} (achat ${formatCurrency(purchaseEur, "EUR")} + transport ${formatCurrency(transportEur, "EUR")})`
+    : `Prix d'achat repris de la photo : ${formatCurrency(purchaseEur, "EUR")} · quantité ${formatNumber(item.desiredQty ?? 1, 0)}`;
+}
+
+function openPhotoProductModal(galleryItemId) {
+  const item = getTableRecord("gallery", galleryItemId);
+  const form = document.querySelector("#photo-product-form");
+
+  if (!item || !form) {
+    return;
+  }
+
+  form.reset();
+  form.elements.galleryItemId.value = item.id;
+  form.elements.name.value = "";
+  document.querySelector("#photo-product-img").src = item.imageUrl;
+  const error = document.querySelector("#photo-product-error");
+  error.hidden = true;
+  updatePhotoProductHint();
+  openModal("photo-product-modal");
+  form.elements.name.focus();
+}
+
+async function handlePhotoProductSubmit(event) {
+  event.preventDefault();
+  const form = event.target;
+  const error = document.querySelector("#photo-product-error");
+  const submit = form.querySelector('[type="submit"]');
+  error.hidden = true;
+  submit.disabled = true;
+
+  try {
+    const result = await apiRequest(`/api/gallery-items/${form.elements.galleryItemId.value}/to-product`, {
+      method: "POST",
+      body: {
+        name: form.elements.name.value,
+        weightG: Number(form.elements.weightG.value),
+        salePriceMad: Number(form.elements.salePriceMad.value),
+      },
+    });
+    Object.assign(state, result.appState);
+    closeModal("photo-product-modal");
+    navigateToPath("/wishlist");
+    await refreshTableData(["gallery", "wishlist", "products"]);
+    showFlash(result.message);
+  } catch (caught) {
+    error.textContent = caught.message;
+    error.hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
 function setTabbarSheet(open) {
   const sheet = document.querySelector("#tabbar-sheet");
   const fab = document.querySelector("#tabbar-fab");
@@ -5701,6 +5934,23 @@ function setTabbarSheet(open) {
 }
 
 function handleDocumentClick(event) {
+  const todayGoButton = event.target.closest("[data-today-go]");
+
+  if (todayGoButton) {
+    if (todayGoButton.dataset.todayTab && refs.galleryTable) {
+      refs.galleryTable.dataset.activeTab = todayGoButton.dataset.todayTab;
+    }
+    navigateToPath(todayGoButton.dataset.todayGo);
+    return;
+  }
+
+  const galleryToProductButton = event.target.closest("[data-gallery-to-product]");
+
+  if (galleryToProductButton) {
+    openPhotoProductModal(galleryToProductButton.dataset.galleryToProduct);
+    return;
+  }
+
   const tabbarFab = event.target.closest("#tabbar-fab");
 
   if (tabbarFab) {
@@ -6335,6 +6585,34 @@ function bindEvents() {
 
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("change", handleGalleryFieldChange);
+  document.querySelectorAll(".table-filters").forEach((form) => {
+    const actions = form.querySelector(".table-filter-actions");
+
+    if (!actions || !form.querySelector(".field-compact-md")) {
+      return;
+    }
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "ghost-button filters-toggle";
+    toggle.textContent = "Dates";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.addEventListener("click", () => {
+      const open = form.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    actions.append(toggle);
+  });
+  document.addEventListener("submit", (event) => {
+    if (event.target.id === "photo-product-form") {
+      void handlePhotoProductSubmit(event);
+    }
+  });
+  document.addEventListener("input", (event) => {
+    if (event.target.closest("#photo-product-form")) {
+      updatePhotoProductHint();
+    }
+  });
   document.addEventListener("keydown", handleDocumentKeydown);
   document.addEventListener("change", handleDocumentChange);
   refs.shipmentForm.addEventListener("input", handleFormInput);

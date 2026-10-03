@@ -1,20 +1,21 @@
 /* ==========================================================================
    Action bla ghla — couche "modern" (chargée après styles.css)
-   Palette tirée du logo : bleu marine / cyan / jaune / rose
+   Palette « Lagon » : turquoise / encre / corail / soleil
    ========================================================================== */
 
 :root {
-  --brand-navy: #0b2f66;
-  --brand-blue: #0057b8;
-  --brand-cyan: #19b5f0;
+  --brand-navy: #08303a;
+  --brand-blue: #0a7f7e;
+  --brand-cyan: #19c7bf;
+  --brand-coral: #f2503f;
   --brand-yellow: #ffc61a;
-  --brand-pink: #ff5fa2;
-  --ink: #0f2547;
-  --ink-soft: #5b7194;
+  --brand-pink: #ff6b8a;
+  --ink: #0b3a44;
+  --ink-soft: #5f7f82;
   --surface: #ffffff;
-  --surface-2: #f3f7fd;
-  --hairline: rgba(12, 41, 84, 0.1);
-  --ring: 0 0 0 3px rgba(0, 87, 184, 0.28);
+  --surface-2: #f1f9f8;
+  --hairline: rgba(8, 52, 60, 0.1);
+  --ring: 0 0 0 3px rgba(10, 127, 126, 0.28);
   --bottom-nav-h: 0px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -39,12 +40,12 @@ html {
   padding: 0;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.95);
-  background: rgba(11, 47, 102, 0.34);
+  background: rgba(8, 48, 58, 0.34);
   color: transparent;
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 2px 8px rgba(11, 47, 102, 0.25);
+  box-shadow: 0 2px 8px rgba(8, 48, 58, 0.25);
   transition: transform 0.18s var(--ease-out), background 0.18s, color 0.18s;
 }
 
@@ -203,7 +204,7 @@ html {
   min-width: 22px;
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(12, 41, 84, 0.08);
+  background: rgba(14, 80, 82, 0.08);
   font-size: 0.75rem;
   text-align: center;
 }
@@ -211,7 +212,7 @@ html {
 .g-tab.is-active {
   background: var(--brand-navy);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(11, 47, 102, 0.28);
+  box-shadow: 0 6px 16px rgba(8, 48, 58, 0.28);
 }
 
 .g-tab.is-active b {
@@ -263,7 +264,7 @@ html {
   border-radius: 22px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  box-shadow: 0 1px 2px rgba(11, 47, 102, 0.04), 0 10px 24px -14px rgba(11, 47, 102, 0.28);
+  box-shadow: 0 1px 2px rgba(8, 48, 58, 0.04), 0 10px 24px -14px rgba(8, 48, 58, 0.28);
   transition: transform 0.22s var(--ease-out), box-shadow 0.22s, border-color 0.2s;
   animation: g-card-in 0.4s var(--ease-out) both;
 }
@@ -275,7 +276,7 @@ html {
 
 .g-card.is-selected {
   border-color: var(--brand-blue);
-  box-shadow: 0 0 0 3px rgba(0, 87, 184, 0.35), 0 14px 30px -14px rgba(0, 87, 184, 0.5);
+  box-shadow: 0 0 0 3px rgba(10, 127, 126, 0.35), 0 14px 30px -14px rgba(10, 127, 126, 0.5);
   transform: scale(0.985);
 }
 
@@ -347,7 +348,7 @@ html {
   bottom: 10px;
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(11, 47, 102, 0.78);
+  background: rgba(8, 48, 58, 0.78);
   color: #fff;
   font-size: 0.78rem;
   font-weight: 800;
@@ -420,7 +421,7 @@ html {
 }
 
 .g-stepper button:active {
-  background: rgba(0, 87, 184, 0.12);
+  background: rgba(10, 127, 126, 0.12);
 }
 
 .g-stepper button svg {
@@ -491,7 +492,7 @@ html {
 }
 
 .g-note::placeholder {
-  color: #93a6c4;
+  color: #94c1c3;
 }
 
 .g-note:focus {
@@ -588,7 +589,7 @@ html {
   border-radius: 20px;
   background: #fff;
   color: var(--brand-blue);
-  box-shadow: 0 8px 20px -10px rgba(0, 87, 184, 0.45);
+  box-shadow: 0 8px 20px -10px rgba(10, 127, 126, 0.45);
 }
 
 .g-empty-icon svg {
@@ -625,8 +626,8 @@ html {
   top: 12px;
   left: 12px;
   background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(12, 41, 84, 0.25);
-  box-shadow: 0 2px 6px rgba(11, 47, 102, 0.12);
+  border-color: rgba(14, 80, 82, 0.25);
+  box-shadow: 0 2px 6px rgba(8, 48, 58, 0.12);
 }
 
 .wishlist-card > .select-check.is-checked {
@@ -636,7 +637,7 @@ html {
 
 .wishlist-card.is-selected {
   border-color: var(--brand-blue) !important;
-  box-shadow: 0 0 0 3px rgba(0, 87, 184, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(10, 127, 126, 0.35) !important;
 }
 
 .wishlist-group-tools {
@@ -660,9 +661,9 @@ html {
   width: min(620px, calc(100% - 24px));
   padding: 10px 10px 10px 8px;
   border-radius: 24px;
-  background: rgba(11, 47, 102, 0.94);
+  background: rgba(8, 48, 58, 0.94);
   color: #fff;
-  box-shadow: 0 24px 50px -12px rgba(5, 20, 50, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  box-shadow: 0 24px 50px -12px rgba(4, 28, 34, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   transform: translateX(-50%);
@@ -787,7 +788,7 @@ body {
   background:
     radial-gradient(900px 420px at 0% -10%, rgba(25, 181, 240, 0.12), transparent 60%),
     radial-gradient(700px 380px at 100% -5%, rgba(255, 198, 26, 0.14), transparent 60%),
-    #f4f7fc;
+    #f4fcfc;
   color: var(--ink);
 }
 
@@ -800,7 +801,7 @@ body::after {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 26px;
-  box-shadow: 0 1px 2px rgba(11, 47, 102, 0.04), 0 18px 40px -26px rgba(11, 47, 102, 0.3);
+  box-shadow: 0 1px 2px rgba(8, 48, 58, 0.04), 0 18px 40px -26px rgba(8, 48, 58, 0.3);
   backdrop-filter: none;
 }
 
@@ -821,7 +822,7 @@ body::after {
   border: 0 !important;
   border-radius: 16px !important;
   font-weight: 800;
-  box-shadow: 0 12px 24px -12px rgba(0, 87, 184, 0.7) !important;
+  box-shadow: 0 12px 24px -12px rgba(10, 127, 126, 0.7) !important;
   transition: transform 0.16s var(--ease-out), box-shadow 0.2s, filter 0.2s;
 }
 
@@ -847,7 +848,7 @@ select:focus-visible,
 textarea:focus-visible,
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgba(0, 87, 184, 0.35);
+  outline: 3px solid rgba(10, 127, 126, 0.35);
   outline-offset: 2px;
 }
 
@@ -855,7 +856,7 @@ a:focus-visible {
 .topbar.topbar-compact {
   background: rgba(255, 255, 255, 0.82) !important;
   border: 1px solid var(--hairline) !important;
-  box-shadow: 0 10px 30px -20px rgba(11, 47, 102, 0.4) !important;
+  box-shadow: 0 10px 30px -20px rgba(8, 48, 58, 0.4) !important;
   backdrop-filter: blur(16px) saturate(1.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   color: var(--ink) !important;
@@ -900,6 +901,7 @@ a:focus-visible {
    Barre d'onglets mobile
    ========================================================================== */
 .tabbar,
+.tabbar-fab,
 .tabbar-sheet {
   display: none;
 }
@@ -920,16 +922,20 @@ a:focus-visible {
     bottom: calc(10px + var(--safe-bottom));
     z-index: 200;
     display: grid;
-    grid-template-columns: 1fr 1fr 74px 1fr 1fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
     height: 66px;
     padding: 0 6px;
     border-radius: 26px;
     background: rgba(255, 255, 255, 0.9);
     border: 1px solid var(--hairline);
-    box-shadow: 0 20px 44px -14px rgba(11, 47, 102, 0.42), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    box-shadow: 0 20px 44px -14px rgba(8, 48, 58, 0.42), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
     backdrop-filter: blur(18px) saturate(1.6);
     -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  }
+
+  .tabbar-fab {
+    display: grid;
   }
 
   .tabbar-link {
@@ -942,7 +948,7 @@ a:focus-visible {
     padding: 0;
     border: 0;
     background: transparent;
-    color: #7c91b0;
+    color: #7dadaf;
     font: inherit;
     font-size: 0.68rem;
     font-weight: 800;
@@ -987,20 +993,28 @@ a:focus-visible {
   }
 
   .tabbar-fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 12px);
+    z-index: 150;
     display: grid;
     place-items: center;
-    justify-self: center;
     width: 58px;
     height: 58px;
-    margin-top: -26px;
     padding: 0;
-    border: 4px solid #f4f7fc;
-    border-radius: 50%;
-    background: linear-gradient(145deg, #ffd84d, var(--brand-yellow));
-    color: var(--brand-navy);
+    border: 0;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #ff7a68, var(--brand-coral));
+    color: #fff;
     cursor: pointer;
-    box-shadow: 0 14px 26px -8px rgba(255, 170, 0, 0.75);
-    transition: transform 0.25s var(--ease-out);
+    box-shadow: 0 16px 30px -10px rgba(242, 80, 63, 0.75);
+    transition: transform 0.25s var(--ease-out), opacity 0.2s;
+  }
+
+  body.has-bulk-bar .tabbar-fab {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.8);
   }
 
   .tabbar-fab svg {
@@ -1035,7 +1049,7 @@ a:focus-visible {
   .tabbar-sheet-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(5, 20, 50, 0.45);
+    background: rgba(4, 28, 34, 0.45);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
     animation: sheet-fade 0.2s ease both;
@@ -1045,13 +1059,15 @@ a:focus-visible {
     position: absolute;
     left: 12px;
     right: 12px;
-    bottom: calc(92px + var(--safe-bottom));
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 84px);
+    left: auto;
+    width: min(340px, calc(100% - 32px));
     display: grid;
     gap: 6px;
     padding: 14px;
     border-radius: 28px;
     background: #fff;
-    box-shadow: 0 30px 60px -20px rgba(5, 20, 50, 0.6);
+    box-shadow: 0 30px 60px -20px rgba(4, 28, 34, 0.6);
     animation: sheet-up 0.32s var(--ease-out) both;
   }
 }
@@ -1103,7 +1119,7 @@ a:focus-visible {
   font-size: 1.35rem;
 }
 
-.tabbar-sheet-icon.is-blue { background: #e4efff; }
+.tabbar-sheet-icon.is-blue { background: #e5fdfe; }
 .tabbar-sheet-icon.is-yellow { background: #fff2c2; }
 .tabbar-sheet-icon.is-cyan { background: #dcf6ff; }
 .tabbar-sheet-icon.is-pink { background: #ffe3ef; }
@@ -1132,7 +1148,7 @@ a:focus-visible {
   border-radius: 22px;
   background: var(--brand-navy);
   color: #fff;
-  box-shadow: 0 24px 50px -14px rgba(5, 20, 50, 0.65);
+  box-shadow: 0 24px 50px -14px rgba(4, 28, 34, 0.65);
   animation: sheet-up 0.4s var(--ease-out) both;
 }
 
@@ -1201,7 +1217,7 @@ a:focus-visible {
   background: var(--surface) !important;
   border: 1px solid var(--hairline) !important;
   border-radius: 24px !important;
-  box-shadow: 0 1px 2px rgba(11, 47, 102, 0.04), 0 16px 34px -24px rgba(11, 47, 102, 0.35) !important;
+  box-shadow: 0 1px 2px rgba(8, 48, 58, 0.04), 0 16px 34px -24px rgba(8, 48, 58, 0.35) !important;
   overflow: hidden;
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s;
 }
@@ -1269,4 +1285,273 @@ a:focus-visible {
   .metric-card > strong {
     font-size: 1.9rem !important;
   }
+}
+
+/* ==========================================================================
+   Thème Lagon — surfaces et navigation
+   ========================================================================== */
+body {
+  background:
+    radial-gradient(900px 420px at 0% -10%, rgba(25, 199, 191, 0.16), transparent 60%),
+    radial-gradient(700px 380px at 100% -5%, rgba(255, 198, 26, 0.13), transparent 60%),
+    #eff8f7;
+}
+
+.sidebar {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(25, 199, 191, 0.22), transparent 30%),
+    linear-gradient(180deg, #0b3a44 0%, #08303a 55%, #06262e 100%) !important;
+  box-shadow: 0 28px 54px rgba(4, 28, 34, 0.35) !important;
+}
+
+.sidebar-link.is-active {
+  background: linear-gradient(135deg, var(--brand-yellow), #ffd95e) !important;
+  color: var(--brand-navy) !important;
+}
+
+.tabbar-link.is-active {
+  color: var(--brand-blue);
+}
+
+.quick-create-toggle {
+  background: var(--brand-coral) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px -8px rgba(242, 80, 63, 0.9) !important;
+}
+
+/* ==========================================================================
+   Contrôle segmenté (Photos | Produits, Achats | Envois, Catalogue | Dispo)
+   ========================================================================== */
+.seg {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 8px 20px -16px rgba(8, 52, 60, 0.5);
+}
+
+.seg a {
+  flex: 1;
+  padding: 11px 12px;
+  border-radius: 14px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.seg a.is-active {
+  background: var(--brand-navy);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px rgba(8, 48, 58, 0.8);
+}
+
+/* ==========================================================================
+   Aujourd'hui — actions et chiffres clés
+   ========================================================================== */
+.today-actions {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 981px) {
+  .today-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.today-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  border-radius: 22px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 1px 2px rgba(8, 52, 60, 0.04), 0 14px 30px -22px rgba(8, 52, 60, 0.45);
+  border-left: 6px solid var(--today-accent, var(--brand-blue));
+}
+
+.today-card.is-buy { --today-accent: var(--brand-cyan); }
+.today-card.is-photo { --today-accent: var(--brand-pink); }
+.today-card.is-ship { --today-accent: var(--brand-blue); }
+.today-card.is-road { --today-accent: #5b8def; }
+.today-card.is-deliver { --today-accent: #8b6df0; }
+.today-card.is-money { --today-accent: var(--brand-yellow); }
+.today-card.is-alert { --today-accent: var(--brand-coral); }
+.today-card.is-done { --today-accent: #16a366; }
+
+.today-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  font-size: 1.4rem;
+}
+
+.today-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.today-copy strong {
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.today-copy small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.today-cta {
+  flex: 0 0 auto;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--brand-navy);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-out), filter 0.15s;
+}
+
+.today-cta:active { transform: scale(0.94); }
+.today-cta:hover { filter: brightness(1.15); }
+
+.today-key {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 981px) {
+  .today-key { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.key-tile {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #0b3a44, #08303a);
+  color: #fff;
+  min-width: 0;
+}
+
+.key-tile span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.key-tile strong {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.1rem, 4.6vw, 1.5rem);
+  letter-spacing: -0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-tile small {
+  color: var(--brand-yellow);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.all-figures {
+  margin-bottom: 16px;
+}
+
+.all-figures > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  color: var(--brand-blue);
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.all-figures > summary::-webkit-details-marker { display: none; }
+.all-figures > summary::after { content: "＋"; font-size: 1.1rem; }
+.all-figures[open] > summary::after { content: "－"; }
+.all-figures > .metric-grid { margin-top: 12px; }
+
+/* ==========================================================================
+   Photo → Produit
+   ========================================================================== */
+.g-icon-btn--product {
+  background: #e0f6f4;
+  color: var(--brand-blue);
+}
+
+.g-icon-btn--product:hover { background: #c8efeb; }
+
+.photo-product-preview {
+  display: grid;
+  place-items: center;
+  height: 150px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.photo-product-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.photo-product-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff7dc;
+  color: #7a5a00;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* Filtres compacts sur mobile : recherche d'abord, dates à la demande */
+.filters-toggle { display: none; }
+
+@media (max-width: 980px) {
+  .table-filters .field-compact-md { display: none; }
+  .table-filters.is-open .field-compact-md { display: grid; }
+
+  .table-filter-actions {
+    display: flex !important;
+    gap: 8px;
+  }
+
+  .table-filter-actions .ghost-button {
+    flex: 1;
+    padding: 12px 8px;
+  }
+
+  .filters-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .table-filters.is-open .filters-toggle { background: var(--brand-navy); color: #fff; }
 }

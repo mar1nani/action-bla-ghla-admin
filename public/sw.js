@@ -2,7 +2,7 @@
    - coque de l'app (HTML/JS/CSS) : réseau d'abord, cache en secours (toujours à jour après un déploiement)
    - images, icônes, polices : cache d'abord, rafraîchi en arrière-plan
    - /api : jamais mis en cache (données privées, session) */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `abg-shell-${VERSION}`;
 const ASSET_CACHE = `abg-assets-${VERSION}`;
 const MAX_ASSETS = 120;
