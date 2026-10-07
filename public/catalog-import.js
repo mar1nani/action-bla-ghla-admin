@@ -212,7 +212,7 @@ async function analyzeUrl() {
       bridge().showFlash(`Import partiel : ${error.message}`, "error");
     } else {
       const blockedHint = /bloque|robots/i.test(error.message)
-        ? `<button class="ghost-button" type="button" data-import-goto="mark">⚡ Import en 1 clic</button><button class="ghost-button" type="button" data-import-goto="pdf">PDF</button><button class="ghost-button" type="button" data-import-goto="html">Coller le code</button>`
+        ? `<a class="ghost-button" href="${esc(url)}" target="_blank" rel="noopener">1. Ouvrir la page</a><button class="ghost-button" type="button" data-import-goto="html">2. Coller son code</button><button class="ghost-button" type="button" data-import-goto="pdf">PDF</button>`
         : "";
       setStatus(error.message, "error", blockedHint);
     }
@@ -505,7 +505,11 @@ if (!window.__abgImportBound) {
     const goto = target.closest("[data-import-goto]");
     if (goto) {
       setStatus("");
-      return setTab(goto.dataset.importGoto);
+      if (goto.dataset.importGoto === "html" && $("#import-url").value.trim()) {
+        $("#import-html-base").value = $("#import-url").value.trim();
+      }
+      setTab(goto.dataset.importGoto);
+      return $("#import-html")?.focus();
     }
 
     if (target.closest("#import-url-go")) return void analyzeUrl();

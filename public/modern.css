@@ -1673,3 +1673,5 @@ body {
 .import-steps kbd { padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--surface-2); font: inherit; font-size: 0.8rem; font-weight: 700; }
 .import-steps code { padding: 1px 6px; border-radius: 6px; background: var(--surface-2); font-size: 0.82rem; }
 .field em { font-style: normal; color: var(--ink-soft); font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+.import-status a.ghost-button { display: inline-flex; align-items: center; padding: 8px 12px; font-size: 0.8rem; text-decoration: none; font-weight: 800; }
