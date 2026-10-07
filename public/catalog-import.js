@@ -4,7 +4,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const bridge = () => window.abg;
 const esc = (value) => bridge().escapeHtml(value ?? "");
 
-const session = { items: [], sourceLabel: "", existing: [], onDone: null, onAdded: null, busy: false };
+const session = { items: [], sourceLabel: "", existing: [], onDone: null, onAdded: null, busy: false, token: 0, photoJob: Promise.resolve(), photoText: "" };
 const KNOWN = ["Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
 
 const normalize = (value) =>
@@ -43,10 +43,77 @@ function markDuplicates(items) {
 }
 
 function showReview(items, sourceLabel) {
-  session.items = markDuplicates(items);
+  session.items = markDuplicates(items).map((item) => ({
+    ...item,
+    needsPhoto: !item.imageId && !item.imageData && /^https?:/i.test(item.imageUrl || ""),
+  }));
   session.sourceLabel = sourceLabel;
   $("#import-sources").hidden = true;
   renderReview();
+  startPhotoJob();
+}
+
+function updatePhotoProgress(done, total) {
+  const failed = session.items.filter((item) => item.photoFailed).length;
+  session.photoText =
+    done >= total
+      ? failed
+        ? `Photos prêtes (${failed} introuvable${failed > 1 ? "s" : ""})`
+        : "Photos prêtes ✓"
+      : `Téléchargement des photos ${done}/${total}…`;
+  const label = $("#import-photo-progress");
+  if (label) label.textContent = session.photoText;
+}
+
+// Les photos sont téléchargées par lots de 6, pendant que tu relis la liste.
+function startPhotoJob() {
+  const token = (session.token += 1);
+  const todo = session.items.map((item, index) => ({ item, index })).filter(({ item }) => item.needsPhoto);
+
+  if (!todo.length) {
+    session.photoJob = Promise.resolve();
+    return;
+  }
+
+  updatePhotoProgress(0, todo.length);
+
+  session.photoJob = (async () => {
+    let done = 0;
+
+    for (let start = 0; start < todo.length; start += 6) {
+      if (token !== session.token) return;
+      const batch = todo.slice(start, start + 6);
+
+      try {
+        const result = await bridge().apiRequest("/api/catalog/fetch-images", {
+          method: "POST",
+          body: { urls: batch.map(({ item }) => item.imageUrl) },
+        });
+
+        result.results.forEach((entry, position) => {
+          const { item, index } = batch[position];
+          item.needsPhoto = false;
+
+          if (entry.imageId) {
+            item.imageId = entry.imageId;
+            item.imageUrl = `/media/${entry.imageId}`;
+            const img = document.querySelector(`[data-import-card="${index}"] .import-photo img`);
+            if (img) img.src = item.imageUrl;
+          } else {
+            item.photoFailed = true;
+          }
+        });
+      } catch {
+        batch.forEach(({ item }) => {
+          item.needsPhoto = false;
+          item.photoFailed = true;
+        });
+      }
+
+      done += batch.length;
+      if (token === session.token) updatePhotoProgress(done, todo.length);
+    }
+  })();
 }
 
 function selectedCount() {
@@ -64,6 +131,7 @@ function renderReview() {
       <div>
         <strong>${session.items.length} article${session.items.length > 1 ? "s" : ""} trouvé${session.items.length > 1 ? "s" : ""}</strong>
         <small>${session.sourceLabel ? `Source : ${esc(session.sourceLabel)} · ` : ""}${withPrice} avec prix en euros</small>
+        <small id="import-photo-progress">${esc(session.photoText)}</small>
       </div>
       <button class="g-select-all" type="button" data-import-toggle-all>${selected === session.items.length ? "Tout décocher" : "Tout cocher"}</button>
     </div>
@@ -73,7 +141,7 @@ function renderReview() {
           (item, index) => `
         <article class="import-card${item.selected ? " is-selected" : ""}${item.duplicate ? " is-duplicate" : ""}" data-import-card="${index}">
           <div class="import-photo">
-            ${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="" loading="lazy" />` : `<span>Pas de photo</span>`}
+            ${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : `<span>Pas de photo</span>`}
             <button class="select-check${item.selected ? " is-checked" : ""}" type="button" data-import-select="${index}" aria-pressed="${item.selected}" aria-label="Inclure">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
             </button>
@@ -216,6 +284,11 @@ async function confirmImport() {
   button.disabled = true;
 
   try {
+    if (chosen.some((item) => item.needsPhoto)) {
+      button.textContent = "Téléchargement des photos…";
+      await session.photoJob;
+    }
+
     let done = 0;
     const pending = chosen.filter((item) => !item.imageId && item.imageData);
     let cursor = 0;
@@ -266,6 +339,7 @@ async function confirmImport() {
 }
 
 function resetUi() {
+  session.token += 1;
   $("#import-sources").hidden = false;
   $("#import-review").hidden = true;
   $("#import-review").innerHTML = "";

@@ -1497,7 +1497,13 @@ async function apiRequest(url, options = {}) {
   });
 
   const raw = await response.text();
-  const payload = raw ? JSON.parse(raw) : {};
+  let payload = {};
+
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    payload = { message: `Réponse inattendue du serveur (${response.status}).` };
+  }
 
   if (response.status === 401) {
     applySessionState({
@@ -1508,7 +1514,7 @@ async function apiRequest(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload.message || "Une erreur est survenue.");
+    throw new Error(payload.message || `Erreur du serveur (${response.status}).`);
   }
 
   return payload;

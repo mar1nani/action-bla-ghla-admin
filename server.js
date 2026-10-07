@@ -25,6 +25,10 @@ import {
 } from "./lib/store.js";
 import { registerCatalogAdminRoutes, registerPublicCatalogRoutes } from "./lib/catalog.js";
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDirectory = path.join(__dirname, "public", "uploads");
