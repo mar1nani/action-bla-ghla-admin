@@ -1110,6 +1110,24 @@ async function loadSession() {
   return payload;
 }
 
+// Hébergement gratuit en veille : le serveur peut mettre jusqu'à ~1 min à répondre. On réessaie tout seul
+// (au lieu de laisser un écran vide) jusqu'à ce que l'écran de connexion ou les données s'affichent.
+async function loadSessionWithRetry(maxAttempts = 15, delayMs = 4000) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await loadSession();
+    } catch (error) {
+      if (attempt >= maxAttempts) {
+        throw error;
+      }
+
+      setHealth(`Réveil du serveur… ${attempt}/${maxAttempts}`);
+      showFlash("Le serveur se réveille, quelques secondes de patience…");
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 function getProductById(productId) {
   return state.products.find((product) => product.id === productId);
 }
@@ -6721,7 +6739,7 @@ async function init() {
   setHealth("Connexion...");
 
   try {
-    await loadSession();
+    await loadSessionWithRetry();
 
     if (state.auth.isAuthenticated) {
       await loadAuthenticatedApp();
