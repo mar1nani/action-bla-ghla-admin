@@ -523,6 +523,15 @@ async function fillSingleFromLink() {
 
   try {
     const result = await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url } });
+
+    if (result.items.length > 3) {
+      $("#import-url").value = url;
+      setSingleNote(
+        `Cette page contient <strong>${result.items.length} articles</strong>. Pour tous les importer d'un coup, <a href="#" data-import-goto="url">utilise l'onglet Lien</a>.`,
+      );
+      return;
+    }
+
     const item = result.items[0];
 
     $("#single-title").value = item.title;
