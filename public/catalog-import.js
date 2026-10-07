@@ -222,23 +222,46 @@ async function analyzeUrl() {
 }
 
 async function analyzeHtml() {
-  const html = $("#import-html").value.trim();
+  const raw = $("#import-html").value.trim();
   const baseUrl = $("#import-html-base").value.trim();
 
-  if (!html || !baseUrl) {
-    setStatus("Indique l'adresse de la page et colle son code.", "error");
+  if (raw.length < 500) {
+    setStatus("Colle d'abord le code de la page (Sélectionner tout, Copier, Coller).", "error");
     return;
   }
 
+  // Plusieurs pages collées à la suite : on les sépare à chaque <!DOCTYPE html>.
+  const pages = raw.split(/(?=<!doctype\s+html)/i).filter((part) => part.trim().length > 500);
+  const parts = pages.length ? pages : [raw];
+
   setBusy(true);
-  setStatus("Analyse du code et téléchargement des photos…");
+  const collected = [];
+  let sourceLabel = "";
+  let lastError = "";
 
   try {
-    const result = await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { html, baseUrl } });
+    for (const [index, html] of parts.entries()) {
+      setStatus(parts.length > 1 ? `Analyse de la page ${index + 1}/${parts.length}…` : "Analyse du code…");
+
+      try {
+        const result = await bridge().apiRequest("/api/catalog/import-url", {
+          method: "POST",
+          body: { html, baseUrl },
+        });
+        sourceLabel = result.sourceLabel;
+        collected.push(...result.items);
+      } catch (error) {
+        lastError = error.message;
+      }
+    }
+
+    if (!collected.length) {
+      setStatus(lastError || "Aucun article reconnu dans ce code.", "error");
+      return;
+    }
+
     setStatus("");
-    showReview(result.items, result.sourceLabel);
-  } catch (error) {
-    setStatus(error.message, "error");
+    showReview(collected, sourceLabel);
   } finally {
     setBusy(false);
   }

@@ -1593,16 +1593,21 @@
                 <p class="import-hint">Ordinateur uniquement. Sur téléphone, utilise le PDF ou « Code ».</p>
               </div>
               <div class="import-pane" data-import-pane="html" hidden>
+                <ol class="import-steps">
+                  <li><strong>Ordinateur :</strong> ouvre la page du site, puis <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>U</kbd> (Windows : <kbd>Ctrl</kbd>+<kbd>U</kbd>) pour voir son code.</li>
+                  <li><strong>Android (Chrome) :</strong> écris <code>view-source:</code> juste avant l'adresse de la page, puis valide.</li>
+                  <li>Sélectionne tout, copie, et colle ci-dessous. Pour plusieurs pages, colle-les <strong>à la suite</strong>, l'une après l'autre.</li>
+                </ol>
                 <label class="field">
-                  <span>Adresse de la page</span>
-                  <input id="import-html-base" type="url" inputmode="url" placeholder="https://www.exemple.com/categorie" autocomplete="off" />
+                  <span>Code de la page</span>
+                  <textarea id="import-html" rows="5" placeholder="Colle ici le code de la page (ou de plusieurs pages)…"></textarea>
                 </label>
                 <label class="field">
-                  <span>Code de la page (Afficher le code source → tout copier → coller)</span>
-                  <textarea id="import-html" rows="6" placeholder="Colle ici le code de la page…"></textarea>
+                  <span>Adresse de la page <em>(facultatif, détectée automatiquement)</em></span>
+                  <input id="import-html-base" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/c/cuisine/" autocomplete="off" />
                 </label>
                 <button id="import-html-go" class="primary-button" type="button">Analyser le code</button>
-                <p class="import-hint">Utile quand un site bloque la lecture automatique : tu ouvres la page toi-même, tu copies son code, et l'app s'occupe du reste.</p>
+                <p class="import-hint">iPhone : Safari ne montre pas le code des pages, utilise plutôt le <strong>PDF</strong> ou l'ordinateur.</p>
               </div>
             </div>
             <div id="import-status" class="import-status" hidden></div>
