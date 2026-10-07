@@ -212,7 +212,7 @@ async function analyzeUrl() {
       bridge().showFlash(`Import partiel : ${error.message}`, "error");
     } else {
       const blockedHint = /bloque|robots/i.test(error.message)
-        ? `<button class="ghost-button" type="button" data-import-goto="pdf">Essayer avec un PDF</button><button class="ghost-button" type="button" data-import-goto="html">Coller le code de la page</button>`
+        ? `<button class="ghost-button" type="button" data-import-goto="mark">⚡ Import en 1 clic</button><button class="ghost-button" type="button" data-import-goto="pdf">PDF</button><button class="ghost-button" type="button" data-import-goto="html">Coller le code</button>`
         : "";
       setStatus(error.message, "error", blockedHint);
     }
@@ -347,13 +347,127 @@ function resetUi() {
   setTab("url");
 }
 
+// Favori « 1 clic » : exécuté sur la page du site (dans le navigateur de l'utilisateur). Il lit la page courante et
+// les suivantes (?page=N), puis ouvre l'app et lui transmet le code des pages par postMessage.
+function bookmarkletSource(appOrigin) {
+  const run = async (APP) => {
+    const target = window.open(APP + "/showcase#import", "_blank");
+    if (!target) {
+      alert("Autorise les fenêtres pop-up pour ce site, puis réessaie.");
+      return;
+    }
+    let ready = false;
+    let pages = null;
+    const push = () => {
+      if (ready && pages) {
+        target.postMessage({ type: "abg-import", pages: pages }, APP);
+        window.removeEventListener("message", onMessage);
+      }
+    };
+    const onMessage = (event) => {
+      if (event.source === target && event.data === "abg-ready") {
+        ready = true;
+        push();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    const answer = prompt("Combien de pages importer ? (environ 24 articles par page)", "1");
+    if (!answer) {
+      target.close();
+      window.removeEventListener("message", onMessage);
+      return;
+    }
+    const count = Math.max(1, Math.min(30, parseInt(answer, 10) || 1));
+    const slim = (html) => html.replace(/<script(?![^>]*ld\+json)[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+    const collected = [{ url: location.href, html: slim(document.documentElement.outerHTML) }];
+    for (let page = 2; page <= count; page += 1) {
+      const next = new URL(location.href);
+      next.searchParams.set("page", page);
+      next.hash = "";
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        const response = await fetch(next.href, { credentials: "same-origin" });
+        if (!response.ok) break;
+        collected.push({ url: next.href, html: slim(await response.text()) });
+      } catch (error) {
+        break;
+      }
+    }
+    pages = collected;
+    push();
+  };
+  const code = run.toString().replace(/\s*\n\s*/g, " ");
+  return `javascript:(${code})(${JSON.stringify(appOrigin)});void 0`;
+}
+
+function prepareBookmarklet() {
+  const link = $("#import-bookmarklet");
+  if (link) {
+    link.href = bookmarkletSource(location.origin);
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      bridge().showFlash("Glisse ce bouton dans ta barre de favoris (ne clique pas dessus ici).", "error");
+    });
+  }
+}
+
 export function openImport({ existing = [], onDone, onAdded } = {}) {
   session.existing = existing;
   session.onDone = onDone;
   session.onAdded = onAdded;
   resetUi();
+  prepareBookmarklet();
   bridge().openModal("import-modal");
   $("#import-url")?.focus();
+}
+
+/** Affiche la fenêtre d'import en attente des pages envoyées par le favori. */
+export function showWaiting() {
+  resetUi();
+  prepareBookmarklet();
+  bridge().openModal("import-modal");
+  setStatus("En attente des pages du site… (réponds à la question affichée sur l'autre onglet)");
+}
+
+/** Reçoit les pages envoyées par le favori : analyse chaque page (sans lire le site depuis le serveur). */
+export async function importFromPages(pages, { existing = [], onDone, onAdded } = {}) {
+  session.existing = existing;
+  session.onDone = onDone;
+  session.onAdded = onAdded;
+  resetUi();
+  prepareBookmarklet();
+  bridge().openModal("import-modal");
+  setBusy(true);
+
+  const collected = [];
+  let sourceLabel = "";
+  let lastError = "";
+
+  try {
+    for (const [index, page] of pages.entries()) {
+      setStatus(`Analyse de la page ${index + 1}/${pages.length}…`);
+      try {
+        const result = await bridge().apiRequest("/api/catalog/import-url", {
+          method: "POST",
+          body: { html: page.html, baseUrl: page.url },
+        });
+        sourceLabel = result.sourceLabel;
+        collected.push(...result.items);
+      } catch (error) {
+        lastError = error.message;
+      }
+    }
+
+    if (!collected.length) {
+      setStatus(lastError || "Aucun article reconnu sur ces pages.", "error");
+      return;
+    }
+
+    setStatus("");
+    showReview(collected, sourceLabel);
+  } finally {
+    setBusy(false);
+  }
 }
 
 if (!window.__abgImportBound) {

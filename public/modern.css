@@ -1663,3 +1663,9 @@ body {
 .import-footer .primary-button { flex: 1; }
 .import-panel { max-height: 92vh; overflow-y: auto; }
 .field-compact-sm input[type="number"] { max-width: 100%; }
+
+/* Favori « 1 clic » */
+.import-steps { margin: 0; padding-left: 20px; display: grid; gap: 12px; color: var(--ink); font-size: 0.9rem; line-height: 1.5; }
+.import-steps small { color: var(--ink-soft); }
+.import-bookmarklet { display: inline-flex; margin-top: 8px; padding: 12px 16px; border-radius: 14px; background: var(--brand-coral); color: #fff; font-weight: 800; text-decoration: none; cursor: grab; box-shadow: 0 10px 22px -10px rgba(242, 80, 63, 0.8); user-select: none; }
+.import-bookmarklet:active { cursor: grabbing; }

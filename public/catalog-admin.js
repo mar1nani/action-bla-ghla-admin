@@ -561,9 +561,38 @@ document.addEventListener("input", (event) => {
   }
 });
 
+// Favori « 1 clic » : la page du site ouvre /showcase#import ; on lui dit qu'on est prêt puis on reçoit les pages.
+let handshakeStarted = false;
+
+async function startOpenerHandshake() {
+  if (handshakeStarted || location.hash !== "#import" || !window.opener) return;
+  handshakeStarted = true;
+
+  const importer = await import("/catalog-import.js");
+
+  window.addEventListener("message", async (event) => {
+    const data = event.data;
+
+    if (event.source !== window.opener || data?.type !== "abg-import" || !Array.isArray(data.pages)) return;
+
+    const pages = data.pages
+      .slice(0, 30)
+      .filter((page) => typeof page?.html === "string" && typeof page?.url === "string" && /^https?:\/\//i.test(page.url))
+      .map((page) => ({ url: page.url, html: page.html.slice(0, 3_000_000) }));
+
+    history.replaceState({}, "", "/showcase");
+    await loadCatalog(true);
+    void importer.importFromPages(pages, { existing: catalog.items, onDone: () => loadCatalog(true), onAdded: () => (catalog.filter.status = "todo") });
+  });
+
+  importer.showWaiting();
+  window.opener.postMessage("abg-ready", "*");
+}
+
 function onPage(page) {
   if (page === "showcase" && bridge()?.getState().auth?.isAuthenticated) {
     void loadCatalog(true);
+    void startOpenerHandshake();
   }
 }
 

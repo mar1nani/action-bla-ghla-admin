@@ -1559,7 +1559,8 @@
               <div class="import-tabs" role="tablist">
                 <button type="button" class="import-tab is-active" data-import-tab="url">🔗 Lien</button>
                 <button type="button" class="import-tab" data-import-tab="pdf">📄 PDF</button>
-                <button type="button" class="import-tab" data-import-tab="html">📋 Code de la page</button>
+                <button type="button" class="import-tab" data-import-tab="html">📋 Code</button>
+                <button type="button" class="import-tab" data-import-tab="mark">⚡ 1 clic</button>
               </div>
               <div class="import-pane" data-import-pane="url">
                 <label class="field">
@@ -1579,6 +1580,17 @@
                   <span>Les photos, titres et prix sont détectés page par page — tout se passe dans ton navigateur.</span>
                   <input id="import-pdf-file" type="file" accept="application/pdf,.pdf" />
                 </label>
+              </div>
+              <div class="import-pane" data-import-pane="mark" hidden>
+                <p class="import-hint"><strong>Pour les sites qui bloquent la lecture automatique (comme Action).</strong> Le favori lit la page dans <em>ton</em> navigateur, puis envoie les articles ici.</p>
+                <ol class="import-steps">
+                  <li>Glisse ce bouton dans ta barre de favoris <small>(Chrome : Cmd/Ctrl + Maj + B pour l'afficher)</small> :
+                    <a id="import-bookmarklet" class="import-bookmarklet" href="#" draggable="true">⚡ Importer vers Action bla ghla</a>
+                  </li>
+                  <li>Ouvre une page de catégorie sur le site (ex. Action → Cuisine).</li>
+                  <li>Clique sur le favori, choisis le nombre de pages : cette fenêtre se rouvre avec les articles.</li>
+                </ol>
+                <p class="import-hint">Ordinateur uniquement. Sur téléphone, utilise le PDF ou « Code ».</p>
               </div>
               <div class="import-pane" data-import-pane="html" hidden>
                 <label class="field">
