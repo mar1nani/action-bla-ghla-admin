@@ -1299,6 +1299,7 @@
               </div>
               <div class="showcase-actions">
                 <button id="showcase-import-button" class="primary-button" type="button">Importer des articles</button>
+                <button id="showcase-add-button" class="ghost-button" type="button">＋ Un article</button>
                 <a id="showcase-open" class="ghost-button" href="/boutique" target="_blank" rel="noopener">Voir la boutique ↗</a>
               </div>
             </div>
@@ -1558,6 +1559,7 @@
             <div id="import-sources">
               <div class="import-tabs" role="tablist">
                 <button type="button" class="import-tab is-active" data-import-tab="url">🔗 Lien</button>
+                <button type="button" class="import-tab" data-import-tab="single">➕ 1 article</button>
                 <button type="button" class="import-tab" data-import-tab="pdf">📄 PDF</button>
                 <button type="button" class="import-tab" data-import-tab="html">📋 Code</button>
                 <button type="button" class="import-tab" data-import-tab="mark">⚡ 1 clic</button>
@@ -1573,6 +1575,40 @@
                 </label>
                 <button id="import-url-go" class="primary-button" type="button">Analyser la page</button>
                 <p class="import-hint">Une page de catégorie contient en général une vingtaine d'articles. Les photos, titres et prix en euros sont récupérés automatiquement.</p>
+              </div>
+              <div class="import-pane" data-import-pane="single" hidden>
+                <label class="field">
+                  <span>Lien de l'article <em>(facultatif)</em></span>
+                  <span class="cat-inline">
+                    <input id="single-url" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/p/…" autocomplete="off" />
+                    <button id="single-fill" class="ghost-button" type="button">Remplir</button>
+                  </span>
+                </label>
+                <p id="single-note" class="import-hint" hidden></p>
+                <label class="single-drop" for="single-file">
+                  <img id="single-preview" alt="" hidden />
+                  <span id="single-drop-text">📷 Ajouter la photo<small>depuis la galerie ou l'appareil photo</small></span>
+                </label>
+                <input id="single-file" type="file" accept="image/*" hidden />
+                <label class="field">
+                  <span>Titre</span>
+                  <input id="single-title" type="text" maxlength="140" placeholder="Nom de l'article" autocomplete="off" />
+                </label>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Prix source (€)</span>
+                    <input id="single-eur" type="number" min="0" step="0.01" inputmode="decimal" placeholder="2,99" />
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Prix client (DH)</span>
+                    <input id="single-mad" type="number" min="0" step="1" inputmode="numeric" placeholder="à fixer" />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Catégorie</span>
+                  <select id="single-category"></select>
+                </label>
+                <button id="single-add" class="primary-button" type="button">Ajouter au catalogue</button>
               </div>
               <div class="import-pane" data-import-pane="pdf" hidden>
                 <label class="import-drop" for="import-pdf-file">

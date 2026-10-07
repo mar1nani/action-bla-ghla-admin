@@ -13,6 +13,7 @@ export const CATEGORIES = [
   { name: "Papeterie & loisirs", icon: "✏️", words: "stylo cahier papier loisir creatif peinture colle agrafeuse classeur feutre crayon carnet scrapbooking fourniture" },
   { name: "Bricolage", icon: "🔧", words: "perceuse tournevis outil marteau vis ampoule rallonge cable pile ruban cadenas bricolage cle scie visseuse" },
   { name: "Électro & high-tech", icon: "🔌", words: "ecouteur chargeur enceinte lampe ventilateur chauffage radio telephone usb batterie montre-connectee" },
+  { name: "Alimentation", icon: "🥜", words: "noix snack chocolat biscuit boisson cafe the bonbon sauce pates epice aliment alimentation conserve jus sirop confiture miel cereale bonbons gateau chips amande cajou pecan raisin sucre farine huile sel riz" },
   { name: "Mode & accessoires", icon: "👜", words: "sac bijou montre lunette chaussette bonnet echarpe gant ceinture parapluie" },
 ];
 
@@ -29,17 +30,8 @@ const KEYWORDS = CATEGORIES.map((category) => ({
   words: category.words.split(/\s+/).filter(Boolean).map((word) => strip(word.replace(/-/g, " "))),
 }));
 
-/** Devine la catégorie à partir du titre (et éventuellement d'un titre de rubrique). */
-export function classifyTitle(title, hint = "") {
-  const haystack = ` ${strip(title).replace(/[^a-z0-9]+/g, " ")} `;
-  const hintText = ` ${strip(hint).replace(/[^a-z0-9]+/g, " ")} `;
-
-  for (const category of CATEGORIES) {
-    if (hintText.includes(` ${strip(category.name)} `)) {
-      return category.name;
-    }
-  }
-
+function scoreText(text) {
+  const haystack = ` ${strip(text).replace(/[^a-z0-9]+/g, " ")} `;
   let best = { name: DEFAULT_CATEGORY, score: 0 };
 
   for (const { name, words } of KEYWORDS) {
@@ -58,7 +50,40 @@ export function classifyTitle(title, hint = "") {
     }
   }
 
-  return best.name;
+  return best;
+}
+
+/** Devine la catégorie à partir du titre ; `hint` = rubrique de la page (titre de page, fil d'Ariane…). */
+export function classifyTitle(title, hint = "") {
+  const fromTitle = scoreText(title);
+
+  // Un titre sans ambiguïté prime toujours sur la rubrique de la page.
+  if (fromTitle.score >= 3) {
+    return fromTitle.name;
+  }
+
+  const hintText = ` ${strip(hint).replace(/[^a-z0-9]+/g, " ")} `;
+
+  for (const category of CATEGORIES) {
+    if (hintText.includes(` ${strip(category.name)} `)) {
+      return category.name;
+    }
+  }
+
+  const fromHint = hint ? scoreText(hint) : { name: DEFAULT_CATEGORY, score: 0 };
+  return fromTitle.score >= 2 || fromHint.score < 2 ? fromTitle.name : fromHint.name;
+}
+
+/** Titre lisible tiré d'une adresse de fiche produit : /p/2581329/cerneaux-de-noix-xl/ → « Cerneaux de noix xl ». */
+export function titleFromUrl(rawUrl) {
+  try {
+    const parts = new URL(rawUrl).pathname.split("/").filter(Boolean);
+    const slug = decodeURIComponent(parts.at(-1) || "").replace(/\.[a-z0-9]{2,5}$/i, "");
+    const text = slug.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Extrait un prix en euros d'un texte : « 1,99 € », « €1.99 », « 12 € 99 »… */

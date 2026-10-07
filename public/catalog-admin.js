@@ -395,13 +395,18 @@ function refreshSummary() {
 
 // --- Événements ----------------------------------------------------------------
 document.addEventListener("click", async (event) => {
-  if (document.body.dataset.page !== "showcase" && !event.target.closest("#showcase-import-button")) return;
+  if (document.body.dataset.page !== "showcase" && !event.target.closest("#showcase-import-button, #showcase-add-button")) return;
 
   const target = event.target;
 
-  if (target.closest("#showcase-import-button, [data-cat-import]")) {
+  if (target.closest("#showcase-import-button, #showcase-add-button, [data-cat-import]")) {
     const module = await import("/catalog-import.js");
-    module.openImport({ existing: catalog.items, onDone: () => loadCatalog(true), onAdded: () => (catalog.filter.status = "todo") });
+    module.openImport({
+      existing: catalog.items,
+      tab: target.closest("#showcase-add-button") ? "single" : "url",
+      onDone: () => loadCatalog(true),
+      onAdded: () => (catalog.filter.status = "todo"),
+    });
     return;
   }
 

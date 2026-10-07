@@ -1675,3 +1675,13 @@ body {
 .field em { font-style: normal; color: var(--ink-soft); font-weight: 600; text-transform: none; letter-spacing: 0; }
 
 .import-status a.ghost-button { display: inline-flex; align-items: center; padding: 8px 12px; font-size: 0.8rem; text-decoration: none; font-weight: 800; }
+
+/* Ajout d'un seul article */
+.single-drop { display: grid; place-items: center; min-height: 150px; border: 2px dashed rgba(10, 127, 126, 0.45); border-radius: 20px; background: var(--surface-2); color: var(--brand-blue); font-weight: 800; text-align: center; cursor: pointer; overflow: hidden; }
+.single-drop small { display: block; margin-top: 4px; color: var(--ink-soft); font-weight: 600; font-size: 0.78rem; }
+.single-drop img { width: 100%; max-height: 240px; object-fit: contain; padding: 8px; background: #fff; }
+.single-drop img[hidden], #single-drop-text[hidden] { display: none; }
+#single-note a { color: var(--brand-blue); font-weight: 800; }
+#single-note[data-tone="error"] { color: #a3263c; }
+.import-tabs { overflow-x: auto; scrollbar-width: none; }
+.import-tab { white-space: nowrap; padding-left: 10px; padding-right: 10px; }

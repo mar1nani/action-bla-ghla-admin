@@ -1,11 +1,13 @@
 // Catalogue clients — import en masse : lien, PDF ou code de page, puis vérification avant ajout.
 
+import { classifyTitle, titleFromUrl } from "/shared/classify.js";
+
 const $ = (selector, root = document) => root.querySelector(selector);
 const bridge = () => window.abg;
 const esc = (value) => bridge().escapeHtml(value ?? "");
 
 const session = { items: [], sourceLabel: "", existing: [], onDone: null, onAdded: null, busy: false, token: 0, photoJob: Promise.resolve(), photoText: "" };
-const KNOWN = ["Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
+const KNOWN = ["Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Alimentation", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
 
 const normalize = (value) =>
   String(value || "")
@@ -434,14 +436,171 @@ function prepareBookmarklet() {
   }
 }
 
-export function openImport({ existing = [], onDone, onAdded } = {}) {
+export function openImport({ existing = [], onDone, onAdded, tab = "url" } = {}) {
   session.existing = existing;
   session.onDone = onDone;
   session.onAdded = onAdded;
   resetUi();
   prepareBookmarklet();
+  resetSingle();
+  setTab(tab);
   bridge().openModal("import-modal");
-  $("#import-url")?.focus();
+  (tab === "single" ? $("#single-url") : $("#import-url"))?.focus();
+}
+
+// --- Un seul article --------------------------------------------------------------------------
+const single = { imageData: "", remoteImage: "", categoryTouched: false };
+
+function resetSingle() {
+  single.imageData = "";
+  single.remoteImage = "";
+  single.categoryTouched = false;
+  ["#single-url", "#single-title", "#single-eur", "#single-mad", "#single-file"].forEach((selector) => {
+    const field = $(selector);
+    if (field) field.value = "";
+  });
+  const select = $("#single-category");
+  if (select) {
+    select.innerHTML = KNOWN.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+    select.value = "Autres";
+  }
+  showSinglePhoto("");
+  const note = $("#single-note");
+  if (note) note.hidden = true;
+}
+
+function showSinglePhoto(src) {
+  const preview = $("#single-preview");
+  const text = $("#single-drop-text");
+  if (!preview || !text) return;
+  preview.hidden = !src;
+  if (src) preview.src = src;
+  text.hidden = Boolean(src);
+}
+
+function setSingleNote(message, tone = "info") {
+  const note = $("#single-note");
+  if (!note) return;
+  note.hidden = !message;
+  note.dataset.tone = tone;
+  note.innerHTML = message;
+}
+
+async function compressImageFile(file, maxSide = 900) {
+  const bitmap = await createImageBitmap(file);
+  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+  canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const webp = canvas.toDataURL("image/webp", 0.82);
+  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.86);
+}
+
+function suggestSingleCategory() {
+  if (single.categoryTouched) return;
+  const title = $("#single-title").value;
+  if (title.trim().length > 2) $("#single-category").value = classifyTitle(title);
+}
+
+async function fillSingleFromLink() {
+  const url = $("#single-url").value.trim();
+
+  if (!url) {
+    setSingleNote("Colle d'abord le lien de l'article.", "error");
+    return;
+  }
+
+  // Ce qu'on peut déduire de l'adresse seule : le nom de l'article.
+  if (!$("#single-title").value.trim()) {
+    $("#single-title").value = titleFromUrl(url);
+    suggestSingleCategory();
+  }
+
+  const button = $("#single-fill");
+  button.disabled = true;
+  setSingleNote("Lecture de la page…");
+
+  try {
+    const result = await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url } });
+    const item = result.items[0];
+
+    $("#single-title").value = item.title;
+    if (item.priceEur) $("#single-eur").value = item.priceEur;
+    single.categoryTouched = false;
+    $("#single-category").value = item.category;
+
+    if (item.imageUrl && !single.imageData) {
+      single.remoteImage = item.imageUrl;
+      showSinglePhoto(item.imageUrl);
+    }
+
+    setSingleNote("Page lue : vérifie les informations, fixe ton prix en DH, puis ajoute.");
+  } catch (error) {
+    const blocked = /bloque|robots/i.test(error.message);
+    setSingleNote(
+      blocked
+        ? `Ce site refuse la lecture automatique : j'ai gardé le <strong>nom</strong> tiré du lien. Ajoute la <strong>photo</strong> et le <strong>prix</strong> à la main, ou <a href="#" data-import-goto="html">colle le code de la page</a> pour tout remplir.`
+        : esc(error.message),
+      blocked ? "info" : "error",
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function addSingle() {
+  const title = $("#single-title").value.trim();
+
+  if (!title) {
+    setSingleNote("Indique le titre de l'article.", "error");
+    return;
+  }
+
+  const button = $("#single-add");
+  button.disabled = true;
+  button.textContent = "Ajout en cours…";
+
+  try {
+    let imageId = "";
+
+    if (single.imageData) {
+      imageId = (await bridge().apiRequest("/api/catalog/images", { method: "POST", body: { imageUpload: single.imageData } })).id;
+    } else if (single.remoteImage) {
+      const fetched = await bridge().apiRequest("/api/catalog/fetch-images", { method: "POST", body: { urls: [single.remoteImage] } });
+      imageId = fetched.results[0]?.imageId || "";
+    }
+
+    const eur = $("#single-eur").value;
+    const mad = $("#single-mad").value;
+
+    await bridge().apiRequest("/api/catalog/items/bulk-create", {
+      method: "POST",
+      body: {
+        sourceLabel: $("#single-url").value.trim() ? new URL($("#single-url").value.trim()).hostname.replace(/^www\./, "") : "Ajout manuel",
+        items: [
+          {
+            title,
+            category: $("#single-category").value,
+            priceEur: eur === "" ? null : Number(eur),
+            priceMad: mad === "" ? null : Number(mad),
+            imageId,
+            sourceUrl: $("#single-url").value.trim(),
+          },
+        ],
+      },
+    });
+
+    bridge().closeModal("import-modal");
+    bridge().showFlash(imageId ? "Article ajouté au catalogue." : "Article ajouté (sans photo).");
+    session.onAdded?.();
+    await session.onDone?.();
+  } catch (error) {
+    setSingleNote(esc(error.message), "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Ajouter au catalogue";
+  }
 }
 
 /** Affiche la fenêtre d'import en attente des pages envoyées par le favori. */
@@ -504,7 +663,11 @@ if (!window.__abgImportBound) {
 
     const goto = target.closest("[data-import-goto]");
     if (goto) {
+      event.preventDefault();
       setStatus("");
+      if (goto.dataset.importGoto === "html" && $("#single-url")?.value.trim() && !$("#import-url").value.trim()) {
+        $("#import-url").value = $("#single-url").value.trim();
+      }
       if (goto.dataset.importGoto === "html" && $("#import-url").value.trim()) {
         $("#import-html-base").value = $("#import-url").value.trim();
       }
@@ -512,6 +675,8 @@ if (!window.__abgImportBound) {
       return $("#import-html")?.focus();
     }
 
+    if (target.closest("#single-fill")) return void fillSingleFromLink();
+    if (target.closest("#single-add")) return void addSingle();
     if (target.closest("#import-url-go")) return void analyzeUrl();
     if (target.closest("#import-html-go")) return void analyzeHtml();
 
@@ -534,7 +699,24 @@ if (!window.__abgImportBound) {
     if (target.closest("[data-import-confirm]")) return void confirmImport();
   });
 
-  document.addEventListener("change", (event) => {
+  document.addEventListener("input", (event) => {
+    if (event.target.id === "single-title") suggestSingleCategory();
+  });
+
+  document.addEventListener("change", async (event) => {
+    if (event.target.id === "single-category") single.categoryTouched = true;
+
+    if (event.target.id === "single-file" && event.target.files?.[0]) {
+      try {
+        single.imageData = await compressImageFile(event.target.files[0]);
+        single.remoteImage = "";
+        showSinglePhoto(single.imageData);
+      } catch {
+        setSingleNote("Impossible de lire cette image.", "error");
+      }
+      return;
+    }
+
     if (event.target.id === "import-pdf-file") {
       void analyzePdf(event.target.files?.[0]);
       return;
