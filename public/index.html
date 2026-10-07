@@ -270,6 +270,14 @@
             </span>
             <span class="sidebar-label">Commandes</span>
           </a>
+          <a href="/showcase" class="sidebar-link" data-section-link="showcase" title="Catalogue clients">
+            <span class="sidebar-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.4 6.6 19.5l1.2-6L3.3 9.3l6.1-.7L12 3z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8"></path>
+              </svg>
+            </span>
+            <span class="sidebar-label">Catalogue clients</span>
+          </a>
           <a
             href="/stats"
             class="sidebar-link"
@@ -1046,6 +1054,10 @@
         </section>
 
         <section id="orders" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/orders" data-section-link="orders">Commandes</a>
+            <a href="/showcase" data-section-link="showcase">Catalogue</a>
+          </nav>
           <article class="panel">
             <div class="section-head section-head-actions">
               <div>
@@ -1273,6 +1285,27 @@
           </article>
         </section>
 
+        <section id="showcase" class="section">
+          <nav class="seg" aria-label="Changer de vue">
+            <a href="/orders" data-section-link="orders">Commandes</a>
+            <a href="/showcase" data-section-link="showcase">Catalogue</a>
+          </nav>
+          <article class="panel showcase-panel">
+            <div class="section-head showcase-head">
+              <div>
+                <p class="eyebrow">Vitrine clients</p>
+                <h3>Catalogue</h3>
+                <p class="gallery-sub">Ajoute des articles en masse, mets ton prix en dirhams, puis publie.</p>
+              </div>
+              <div class="showcase-actions">
+                <button id="showcase-import-button" class="primary-button" type="button">Importer des articles</button>
+                <a id="showcase-open" class="ghost-button" href="/boutique" target="_blank" rel="noopener">Voir la boutique ↗</a>
+              </div>
+            </div>
+            <div id="showcase-body"></div>
+          </article>
+        </section>
+
         <section id="stats" class="section">
           <div class="section-head">
             <div>
@@ -1412,7 +1445,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3z"></path><path d="M14 10h4l3 3v3h-7"></path><circle cx="7" cy="17" r="1.8"></circle><circle cx="17" cy="17" r="1.8"></circle></svg>
             <span>Envois</span>
           </a>
-          <a href="/orders" class="tabbar-link" data-section-link="orders" title="Ventes">
+          <a href="/orders" class="tabbar-link" data-section-link="orders" data-tab-groups="orders showcase" title="Ventes">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"></path></svg>
             <span>Ventes</span>
           </a>
@@ -1512,6 +1545,59 @@
           </article>
         </div>
 
+        <div id="import-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="import-modal"></div>
+          <article class="panel modal-panel modal-panel-wide import-panel">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">Catalogue clients</p>
+                <h3>Importer des articles</h3>
+              </div>
+              <button class="modal-close" type="button" data-close-modal="import-modal" aria-label="Fermer la fenêtre">×</button>
+            </div>
+            <div id="import-sources">
+              <div class="import-tabs" role="tablist">
+                <button type="button" class="import-tab is-active" data-import-tab="url">🔗 Lien</button>
+                <button type="button" class="import-tab" data-import-tab="pdf">📄 PDF</button>
+                <button type="button" class="import-tab" data-import-tab="html">📋 Code de la page</button>
+              </div>
+              <div class="import-pane" data-import-pane="url">
+                <label class="field">
+                  <span>Adresse de la page (catégorie, liste ou fiche produit)</span>
+                  <input id="import-url" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/c/cuisine/" autocomplete="off" />
+                </label>
+                <label class="field field-compact-sm">
+                  <span>Nombre de pages à importer</span>
+                  <input id="import-pages" type="number" min="1" max="20" step="1" value="1" inputmode="numeric" />
+                </label>
+                <button id="import-url-go" class="primary-button" type="button">Analyser la page</button>
+                <p class="import-hint">Une page de catégorie contient en général une vingtaine d'articles. Les photos, titres et prix en euros sont récupérés automatiquement.</p>
+              </div>
+              <div class="import-pane" data-import-pane="pdf" hidden>
+                <label class="import-drop" for="import-pdf-file">
+                  <strong>Choisis un catalogue PDF</strong>
+                  <span>Les photos, titres et prix sont détectés page par page — tout se passe dans ton navigateur.</span>
+                  <input id="import-pdf-file" type="file" accept="application/pdf,.pdf" />
+                </label>
+              </div>
+              <div class="import-pane" data-import-pane="html" hidden>
+                <label class="field">
+                  <span>Adresse de la page</span>
+                  <input id="import-html-base" type="url" inputmode="url" placeholder="https://www.exemple.com/categorie" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Code de la page (Afficher le code source → tout copier → coller)</span>
+                  <textarea id="import-html" rows="6" placeholder="Colle ici le code de la page…"></textarea>
+                </label>
+                <button id="import-html-go" class="primary-button" type="button">Analyser le code</button>
+                <p class="import-hint">Utile quand un site bloque la lecture automatique : tu ouvres la page toi-même, tu copies son code, et l'app s'occupe du reste.</p>
+              </div>
+            </div>
+            <div id="import-status" class="import-status" hidden></div>
+            <div id="import-review" class="import-review" hidden></div>
+          </article>
+        </div>
+
         <div id="confirm-modal" class="modal-shell" hidden>
           <div class="modal-backdrop" data-close-modal="confirm-modal"></div>
           <article class="panel modal-panel confirm-modal-panel">
@@ -1599,5 +1685,6 @@
 
     <script type="module" src="/app.js"></script>
     <script type="module" src="/pwa.js"></script>
+    <script type="module" src="/catalog-admin.js"></script>
   </body>
 </html>

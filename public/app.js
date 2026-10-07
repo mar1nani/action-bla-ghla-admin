@@ -141,6 +141,10 @@ const PAGE_CONFIG = {
     path: "/shipments",
     documentTitle: "Envois",
   },
+  showcase: {
+    path: "/showcase",
+    documentTitle: "Catalogue clients",
+  },
   orders: {
     path: "/orders",
     documentTitle: "Ventes",
@@ -534,6 +538,7 @@ function applyPageLayout() {
 
   document.body.dataset.page = currentPageKey;
   renderBulkBar();
+  document.dispatchEvent(new CustomEvent("abg:page", { detail: { page: currentPageKey } }));
 
   refs.sections.forEach((section) => {
     section.hidden = section.id !== currentPageKey;
@@ -2307,6 +2312,11 @@ function renderBulkBar() {
   }
 
   const page = document.body.dataset.page;
+
+  if (page === "showcase") {
+    return;
+  }
+
   const scope = page === "gallery" ? "gallery" : page === "wishlist" ? "wishlist" : "";
   const selectedIds = scope ? [...bulkSelection[scope]] : [];
 
@@ -5745,6 +5755,24 @@ function renderTodayActions() {
       go: "/wishlist",
     },
     {
+      tone: "catalog",
+      icon: "🏷️",
+      show: todo.catalogTodo > 0,
+      title: plural(todo.catalogTodo, "article à chiffrer", "articles à chiffrer"),
+      hint: "Mets ton prix en dirhams dans le catalogue",
+      cta: "Chiffrer",
+      go: "/showcase",
+    },
+    {
+      tone: "catalog",
+      icon: "✨",
+      show: todo.catalogDrafts > 0,
+      title: plural(todo.catalogDrafts, "article prêt à publier", "articles prêts à publier"),
+      hint: "Chiffrés mais pas encore en vitrine",
+      cta: "Publier",
+      go: "/showcase",
+    },
+    {
       tone: "photo",
       icon: "📸",
       show: todo.galleryBought > 0,
@@ -6709,3 +6737,17 @@ async function init() {
 }
 
 init();
+
+// Passerelle pour les modules du catalogue (catalog-admin.js, catalog-import.js).
+window.abg = {
+  apiRequest,
+  showFlash,
+  openConfirmDialog,
+  openModal,
+  closeModal,
+  navigateToPath,
+  escapeHtml,
+  formatNumber,
+  formatCurrency,
+  getState: () => state,
+};

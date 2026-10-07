@@ -23,6 +23,7 @@ import {
   readStore,
   updateStore,
 } from "./lib/store.js";
+import { registerCatalogAdminRoutes, registerPublicCatalogRoutes } from "./lib/catalog.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -389,6 +390,8 @@ function buildTodoCounts(store) {
     galleryBought: gallery.filter((item) => item.purchased).length,
     wishlistPending: wishlist.filter((entry) => !entry.purchased).length,
     wishlistBought: wishlist.filter((entry) => entry.purchased).length,
+    catalogTodo: (store.catalogItems ?? []).filter((item) => !(item.priceMad > 0)).length,
+    catalogDrafts: (store.catalogItems ?? []).filter((item) => !item.published && item.priceMad > 0).length,
   };
 }
 
@@ -1738,7 +1741,21 @@ app.get(
   }),
 );
 
+registerPublicCatalogRoutes(app, { asyncRoute, readStore });
+
+app.get(["/boutique", "/boutique/"], (_request, response) => {
+  response.sendFile(path.join(__dirname, "public", "boutique.html"));
+});
+
 app.use("/api", requireAuthenticatedApi);
+
+registerCatalogAdminRoutes(app, {
+  asyncRoute,
+  readStore,
+  updateStore,
+  getAuthenticatedUser,
+  createNotFoundError,
+});
 
 app.get(
   "/api/users",

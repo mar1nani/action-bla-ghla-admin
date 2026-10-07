@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>La Boutique · Action bla ghla</title>
+    <meta name="description" content="Notre sélection d'articles pour la maison : cuisine, meubles, déco et plus encore. Commandez facilement sur WhatsApp." />
+    <meta name="theme-color" content="#08303a" />
+    <meta property="og:title" content="La Boutique · Action bla ghla" />
+    <meta property="og:description" content="Cuisine, meubles, déco… une sélection d'articles à commander sur WhatsApp." />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/boutique.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-top">
+        <a class="brand" href="/boutique" aria-label="Action bla ghla">
+          <img src="/assets/logo-action-bla-ghla.png" alt="" width="44" height="44" />
+          <span>Action <em>bla ghla</em></span>
+        </a>
+      </div>
+      <div class="hero-copy">
+        <p class="eyebrow">La collection</p>
+        <h1>Tout pour <em>votre maison</em></h1>
+        <p class="lead">Une sélection d'articles choisis avec soin. Touchez un article, commandez en un message.</p>
+      </div>
+    </header>
+
+    <nav class="filters" aria-label="Catégories">
+      <div class="filters-inner">
+        <div id="chips" class="chips" role="tablist"></div>
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg>
+          <input id="search" type="search" placeholder="Rechercher un article" autocomplete="off" />
+        </label>
+      </div>
+    </nav>
+
+    <main id="main" class="main" aria-live="polite">
+      <div class="skeleton-grid" id="skeleton">
+        <i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <img src="/assets/logo-action-bla-ghla.png" alt="" width="56" height="56" />
+      <p>Prix en dirhams marocains (DH) · Commande par WhatsApp</p>
+    </footer>
+
+    <div id="sheet" class="sheet" hidden>
+      <div class="sheet-backdrop" data-close></div>
+      <article class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <button class="sheet-close" type="button" data-close aria-label="Fermer">×</button>
+        <div class="sheet-photo"><img id="sheet-img" alt="" /></div>
+        <div class="sheet-body">
+          <p id="sheet-cat" class="eyebrow"></p>
+          <h2 id="sheet-title"></h2>
+          <p id="sheet-desc" class="sheet-desc"></p>
+          <p id="sheet-price" class="price"></p>
+          <a id="sheet-cta" class="cta" target="_blank" rel="noopener">Commander sur WhatsApp</a>
+        </div>
+      </article>
+    </div>
+
+    <script type="module" src="/boutique.js"></script>
+  </body>
+</html>

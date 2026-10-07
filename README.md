@@ -141,3 +141,27 @@ L'app Express est exposée comme fonction Vercel (`api/index.js` + `vercel.json`
 4. Deploy. Les utilisateurs devront se reconnecter une fois lors du changement.
 
 Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées côté navigateur).
+
+## Catalogue clients (vitrine « Boutique »)
+
+- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). **Importer des articles** depuis :
+  - un **lien** de page catégorie/liste (ex. `https://www.action.com/fr-fr/c/cuisine/`, plusieurs pages d'un coup) ;
+  - un **PDF** de catalogue (lu dans le navigateur : photos, titres, prix détectés page par page) ;
+  - le **code d'une page** collé à la main (quand un site bloque la lecture automatique).
+  Les articles arrivent en brouillon avec photo, titre, prix source en € et catégorie devinée. Ensuite : **Chiffrer en DH**
+  (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
+- **Public** : `/boutique` — catalogue haut de gamme par catégories, recherche, fiche article, bouton « Commander sur WhatsApp »
+  (numéro réglable dans « Réglages de la vitrine »). API publique : `GET /api/public/showcase`.
+- Les photos du catalogue sont stockées **hors du document principal** : table `app_images` (créée automatiquement, `CREATE TABLE IF NOT EXISTS`),
+  servies par `/media/:id` avec cache long. En local : dossier `data/media/`.
+- Import par lien : respecte le `robots.txt`, refuse les adresses privées, signale les sites protégés (anti-robots).
+
+```sql
+-- Création manuelle (facultative : l'app le fait seule au démarrage)
+CREATE TABLE IF NOT EXISTS app_images (
+  id TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
