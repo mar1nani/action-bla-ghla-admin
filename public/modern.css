@@ -1696,3 +1696,10 @@ body {
 .ext-admin { padding: 10px 12px; border-radius: 12px; background: rgba(8, 52, 60, 0.05); font-size: 0.85rem; }
 .ext-admin summary { cursor: pointer; font-weight: 800; color: var(--ink-soft); }
 .ext-admin .import-steps { margin-top: 10px; }
+
+.import-card.is-missing { border-color: #e0334c; box-shadow: 0 0 0 3px rgba(224, 51, 76, 0.25); }
+.import-card.is-missing .cat-title { background: #fdebee; }
+.import-drop kbd { padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 6px; background: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; }
+
+.import-drop-button { justify-self: center; margin-top: 6px; padding: 12px 22px; border-radius: 14px; background: linear-gradient(135deg, var(--brand-blue), var(--brand-navy)); color: #fff; font-weight: 800; box-shadow: 0 10px 22px -12px rgba(10, 127, 126, 0.8); }
+.import-drop .import-drop-button { color: #fff; font-size: 1rem; }

@@ -144,21 +144,17 @@ Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées c�
 
 ## Catalogue clients (vitrine « Boutique »)
 
-- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). Deux façons d'ajouter des articles :
-  - **🔗 Plusieurs articles** : colle le lien d'une page de catégorie (ex. `https://www.action.com/fr-fr/c/cuisine/`, plusieurs pages d'un coup) ;
-  - **➕ 1 article** : colle le lien d'une fiche produit ; nom, prix en €, photo et catégorie sont remplis (sinon : photo et prix à la main).
-  Les articles arrivent en brouillon avec photo, titre, prix source en € et catégorie devinée. Ensuite : **Chiffrer en DH**
-  (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
-- **Action et l'extension Chrome** : `action.com` refuse les serveurs d'hébergement (protection anti-robots). Pour lire ses pages, installe une fois
-  l'extension `extension/` (téléchargeable dans l'app : `/abg-extension.zip`) : Chrome → `chrome://extensions` → Mode développeur →
-  Charger l'extension non empaquetée. L'extension lit la page avec TON navigateur, l'app l'analyse. Les autres sites se lisent directement par le serveur.
-  Pour un autre domaine d'application que `*.vercel.app` / `*.onrender.com`, ajoute-le dans `extension/manifest.json` (`content_scripts.matches`),
-  puis régénère le zip : `cd extension && zip -r ../public/abg-extension.zip . -x '.*'`.
+- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). **📸 Ajouter depuis une capture** : fais une capture d'écran d'un article
+  ou d'une page d'articles (site, catalogue, prospectus), envoie-la (choisir, glisser ou **Ctrl+V**) : l'IA (Claude) lit le **titre**,
+  découpe la **photo**, choisit la **catégorie** (et le **prix en €** s'il est visible). Tu vérifies, puis les articles arrivent en brouillon.
+  Ensuite : **Chiffrer en DH** (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
+  - Variables d'environnement : `ANTHROPIC_API_KEY` (obligatoire pour l'IA), `CLAUDE_VISION_MODEL` (facultatif, défaut `claude-opus-5-5` ;
+    `claude-haiku-5-5` coûte environ 40 fois moins, au prix d'une détection un peu moins fine).
+  - Sans clé, la capture est ajoutée telle quelle et il suffit de saisir le titre à la main.
 - **Public** : `/boutique` — catalogue haut de gamme par catégories, recherche, fiche article, bouton « Commander sur WhatsApp »
   (numéro réglable dans « Réglages de la vitrine »). API publique : `GET /api/public/showcase`.
 - Les photos du catalogue sont stockées **hors du document principal** : table `app_images` (créée automatiquement, `CREATE TABLE IF NOT EXISTS`),
   servies par `/media/:id` avec cache long. En local : dossier `data/media/`.
-- Import par lien : respecte le `robots.txt`, refuse les adresses privées, signale les sites protégés (anti-robots).
 
 ```sql
 -- Création manuelle (facultative : l'app le fait seule au démarrage)

@@ -1,122 +1,130 @@
-// Catalogue clients — import par lien (plusieurs articles ou un seul), puis vérification avant ajout.
-// Pour les sites qui refusent les serveurs (Action), la page est lue par l'extension Chrome de l'utilisateur.
-
-import { classifyTitle, titleFromUrl } from "/shared/classify.js";
+// Catalogue clients — ajout d'articles depuis une capture d'écran lue par l'IA (titre, photo, catégorie, prix en €).
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const bridge = () => window.abg;
 const esc = (value) => bridge().escapeHtml(value ?? "");
 
-const session = { items: [], sourceLabel: "", existing: [], onDone: null, onAdded: null, busy: false, token: 0, photoJob: Promise.resolve(), photoText: "" };
+const session = { items: [], existing: [], onDone: null, onAdded: null, busy: false, notice: "" };
+const MAX_IMAGES = 10;
 const KNOWN = ["Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Alimentation", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
 
 const normalize = (value) =>
   String(value || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-function setTab(name) {
-  document.querySelectorAll("[data-import-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.importTab === name));
-  document.querySelectorAll("[data-import-pane]").forEach((pane) => (pane.hidden = pane.dataset.importPane !== name));
-}
-
-function setStatus(message, tone = "info", extra = "") {
+function setStatus(message, tone = "info") {
   const box = $("#import-status");
   box.hidden = !message;
   box.dataset.tone = tone;
-  box.innerHTML = message ? `<span>${esc(message)}</span>${extra}` : "";
-}
-
-function setBusy(busy) {
-  session.busy = busy;
-  document.querySelectorAll("#import-modal .primary-button, #import-modal input, #import-modal textarea").forEach((element) => {
-    if (!element.closest("#import-review")) element.disabled = busy;
-  });
+  box.textContent = message || "";
 }
 
 function markDuplicates(items) {
   const known = new Set(session.existing.map((item) => `${normalize(item.title)}|${item.priceEur ?? ""}`));
   return items.map((item) => {
-    const duplicate = known.has(`${normalize(item.title)}|${item.priceEur ?? ""}`);
+    const duplicate = Boolean(item.title) && known.has(`${normalize(item.title)}|${item.priceEur ?? ""}`);
     return { ...item, duplicate, selected: !duplicate };
   });
 }
 
-function showReview(items, sourceLabel) {
-  session.items = markDuplicates(items).map((item) => ({
-    ...item,
-    needsPhoto: !item.imageId && !item.imageData && /^https?:/i.test(item.imageUrl || ""),
-  }));
-  session.sourceLabel = sourceLabel;
-  $("#import-sources").hidden = true;
-  renderReview();
-  startPhotoJob();
+// --- Images : réduction pour l'IA, découpe des photos ------------------------------------------
+function drawScaled(bitmap, maxSide) {
+  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+  canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 
-function updatePhotoProgress(done, total) {
-  const failed = session.items.filter((item) => item.photoFailed).length;
-  session.photoText =
-    done >= total
-      ? failed
-        ? `Photos prêtes (${failed} introuvable${failed > 1 ? "s" : ""})`
-        : "Photos prêtes ✓"
-      : `Téléchargement des photos ${done}/${total}…`;
-  const label = $("#import-photo-progress");
-  if (label) label.textContent = session.photoText;
+function encode(canvas) {
+  const webp = canvas.toDataURL("image/webp", 0.82);
+  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.86);
 }
 
-// Les photos sont téléchargées par lots de 6, pendant que tu relis la liste.
-function startPhotoJob() {
-  const token = (session.token += 1);
-  const todo = session.items.map((item, index) => ({ item, index })).filter(({ item }) => item.needsPhoto);
+/** Découpe un rectangle (en millièmes de l'image) de la capture ; 1,5 % de marge autour de la photo. */
+function crop(canvas, box, maxSide = 900) {
+  const pad = 0.015;
+  const left = Math.max(0, box.x / 1000 - pad);
+  const top = Math.max(0, box.y / 1000 - pad);
+  const right = Math.min(1, (box.x + box.width) / 1000 + pad);
+  const bottom = Math.min(1, (box.y + box.height) / 1000 + pad);
+  const sx = Math.round(left * canvas.width);
+  const sy = Math.round(top * canvas.height);
+  const sw = Math.max(8, Math.round((right - left) * canvas.width));
+  const sh = Math.max(8, Math.round((bottom - top) * canvas.height));
+  const ratio = Math.min(1, maxSide / Math.max(sw, sh));
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(sw * ratio));
+  out.height = Math.max(1, Math.round(sh * ratio));
+  out.getContext("2d").drawImage(canvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  return encode(out);
+}
 
-  if (!todo.length) {
-    session.photoJob = Promise.resolve();
+async function analyzeFile(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = drawScaled(bitmap, 1568);
+
+  try {
+    const { items } = await bridge().apiRequest("/api/catalog/extract", {
+      method: "POST",
+      body: { image: canvas.toDataURL("image/jpeg", 0.85) },
+    });
+
+    if (items.length) {
+      return items.map((item) => {
+        const imageData = crop(canvas, item.box);
+        return { ...item, imageData, imageUrl: imageData };
+      });
+    }
+
+    session.notice = "L'IA n'a reconnu aucun article sur une capture : elle est ajoutée telle quelle, complète le titre.";
+  } catch (error) {
+    session.notice = `${error.message} La capture est ajoutée telle quelle : complète le titre.`;
+  }
+
+  const whole = encode(drawScaled(bitmap, 900));
+  return [{ title: "", description: "", priceEur: null, category: "Autres", imageData: whole, imageUrl: whole, needsTitle: true }];
+}
+
+async function analyzeFiles(fileList) {
+  const files = [...fileList].filter((file) => file.type.startsWith("image/")).slice(0, MAX_IMAGES);
+
+  if (!files.length) {
+    setStatus("Choisis une image (capture d'écran ou photo).", "error");
     return;
   }
 
-  updatePhotoProgress(0, todo.length);
+  session.busy = true;
+  session.notice = "";
+  $("#import-files").disabled = true;
+  const collected = [];
 
-  session.photoJob = (async () => {
-    let done = 0;
-
-    for (let start = 0; start < todo.length; start += 6) {
-      if (token !== session.token) return;
-      const batch = todo.slice(start, start + 6);
-
-      try {
-        const result = await bridge().apiRequest("/api/catalog/fetch-images", {
-          method: "POST",
-          body: { urls: batch.map(({ item }) => item.imageUrl) },
-        });
-
-        result.results.forEach((entry, position) => {
-          const { item, index } = batch[position];
-          item.needsPhoto = false;
-
-          if (entry.imageId) {
-            item.imageId = entry.imageId;
-            item.imageUrl = `/media/${entry.imageId}`;
-            const img = document.querySelector(`[data-import-card="${index}"] .import-photo img`);
-            if (img) img.src = item.imageUrl;
-          } else {
-            item.photoFailed = true;
-          }
-        });
-      } catch {
-        batch.forEach(({ item }) => {
-          item.needsPhoto = false;
-          item.photoFailed = true;
-        });
-      }
-
-      done += batch.length;
-      if (token === session.token) updatePhotoProgress(done, todo.length);
+  try {
+    for (const [index, file] of files.entries()) {
+      setStatus(`Analyse de la capture ${index + 1}/${files.length}… (quelques secondes)`);
+      collected.push(...(await analyzeFile(file)));
     }
-  })();
+
+    setStatus(session.notice, session.notice ? "info" : "info");
+    showReview(collected);
+  } catch (error) {
+    setStatus(`Image illisible : ${error.message}`, "error");
+  } finally {
+    session.busy = false;
+    $("#import-files").disabled = false;
+    $("#import-files").value = "";
+  }
+}
+
+function showReview(items) {
+  session.items = markDuplicates(items);
+  $("#import-sources").hidden = true;
+  renderReview();
 }
 
 function selectedCount() {
@@ -133,8 +141,7 @@ function renderReview() {
     <div class="import-review-head">
       <div>
         <strong>${session.items.length} article${session.items.length > 1 ? "s" : ""} trouvé${session.items.length > 1 ? "s" : ""}</strong>
-        <small>${session.sourceLabel ? `Source : ${esc(session.sourceLabel)} · ` : ""}${withPrice} avec prix en euros</small>
-        <small id="import-photo-progress">${esc(session.photoText)}</small>
+        <small>${withPrice} avec prix en euros · vérifie et corrige si besoin</small>
       </div>
       <button class="g-select-all" type="button" data-import-toggle-all>${selected === session.items.length ? "Tout décocher" : "Tout cocher"}</button>
     </div>
@@ -144,14 +151,14 @@ function renderReview() {
           (item, index) => `
         <article class="import-card${item.selected ? " is-selected" : ""}${item.duplicate ? " is-duplicate" : ""}" data-import-card="${index}">
           <div class="import-photo">
-            ${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : `<span>Pas de photo</span>`}
+            ${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="" loading="lazy" />` : `<span>Pas de photo</span>`}
             <button class="select-check${item.selected ? " is-checked" : ""}" type="button" data-import-select="${index}" aria-pressed="${item.selected}" aria-label="Inclure">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
             </button>
             ${item.duplicate ? `<span class="cat-badge">Déjà ajouté</span>` : ""}
           </div>
           <div class="import-body">
-            <input class="cat-title" value="${esc(item.title)}" data-import-field="title" data-import-index="${index}" aria-label="Titre" maxlength="140" />
+            <input class="cat-title" value="${esc(item.title)}" data-import-field="title" data-import-index="${index}" aria-label="Titre" maxlength="140" placeholder="Titre à compléter" />
             <select class="cat-category" data-import-field="category" data-import-index="${index}" aria-label="Catégorie">
               ${[...new Set([...KNOWN, item.category])].map((name) => `<option value="${esc(name)}"${name === item.category ? " selected" : ""}>${esc(name)}</option>`).join("")}
             </select>
@@ -165,7 +172,7 @@ function renderReview() {
         .join("")}
     </div>
     <div class="import-footer">
-      <button class="ghost-button" type="button" data-import-back>← Autre source</button>
+      <button class="ghost-button" type="button" data-import-back>← Autre capture</button>
       <button class="primary-button" type="button" data-import-confirm ${selected ? "" : "disabled"}>Ajouter ${selected} article${selected > 1 ? "s" : ""}</button>
     </div>
     <p class="import-hint">Les articles sont ajoutés en brouillon : tu mets ensuite ton prix en dirhams, puis tu publies.</p>
@@ -183,149 +190,27 @@ function refreshFooter() {
   if (all) all.textContent = selected === session.items.length ? "Tout décocher" : "Tout cocher";
 }
 
-// --- Extension Chrome (lecture des pages avec le navigateur de l'utilisateur) -----------------
-const EXT_HOSTS = new Set(["www.action.com"]);
-const hostOf = (value) => {
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return "";
-  }
-};
-
-function extCall(payload, timeoutMs) {
-  return new Promise((resolve) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const onMessage = (event) => {
-      if (event.source === window && event.data?.source === "abg-ext" && event.data.id === id) {
-        clearTimeout(timer);
-        window.removeEventListener("message", onMessage);
-        resolve(event.data);
-      }
-    };
-    const timer = setTimeout(() => {
-      window.removeEventListener("message", onMessage);
-      resolve(null);
-    }, timeoutMs);
-    window.addEventListener("message", onMessage);
-    window.postMessage({ source: "abg-app", id, ...payload }, "*");
-  });
-}
-
-async function extensionAvailable() {
-  return (await extCall({ type: "ping" }, 800))?.type === "pong";
-}
-
-const slimHtml = (html) =>
-  html.replace(/<script(?![^>]*ld\+json)[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
-
-function pageUrl(url, page) {
-  const target = new URL(url);
-  target.hash = "";
-  if (page > 1) target.searchParams.set("page", String(page));
-  return target.href;
-}
-
-/** Lit une page avec l'extension, puis la fait analyser par le serveur (qui ne contacte pas le site). */
-async function importPageViaExtension(url) {
-  const result = await extCall({ type: "fetch", url }, 90_000);
-
-  if (!result) throw new Error("L'extension ne répond pas. Recharge la page.");
-  if (!result.ok) throw new Error(result.error || "La page n'a pas pu être lue.");
-
-  return bridge().apiRequest("/api/catalog/import-url", {
-    method: "POST",
-    body: { html: slimHtml(result.html), baseUrl: url },
-  });
-}
-
-function adminInstallHtml() {
-  return `
-    <details class="ext-admin">
-      <summary>Réservé à l'administrateur : installer l'extension Chrome (une seule fois)</summary>
-      <ol class="import-steps">
-        <li><a class="ghost-button" href="/abg-extension.zip" download>⬇ Télécharger l'extension</a> puis ouvre le fichier : il se décompresse en un dossier.</li>
-        <li>Dans Chrome, écris <code>chrome://extensions</code>, active <em>Mode développeur</em> (en haut à droite), clique <em>Charger l'extension non empaquetée</em> et choisis ce dossier.</li>
-        <li>Recharge l'application : le lien Action fonctionne alors sur cet ordinateur.</li>
-      </ol>
-    </details>`;
-}
-
-function installHelpHtml(kind = "many") {
-  return kind === "single"
-    ? `<div class="ext-help"><span><strong>Action ne permet pas la lecture automatique.</strong> J'ai gardé le <strong>nom</strong> et la <strong>catégorie</strong> : ajoute la <strong>photo</strong> (clic droit sur l'image du site → <em>Copier l'image</em>, puis <kbd>Ctrl</kbd>+<kbd>V</kbd> ici) et le <strong>prix</strong>.</span>${adminInstallHtml()}</div>`
-    : `<div class="ext-help"><span><strong>Action ne permet pas la lecture automatique de ses pages.</strong> Pour importer beaucoup d'articles d'un coup, il faut l'extension Chrome ; sinon ajoute-les un par un avec l'onglet « 1 article ».</span>${adminInstallHtml()}</div>`;
-}
-
-function showInstallHelp() {
-  const box = $("#import-status");
-  box.hidden = false;
-  box.dataset.tone = "info";
-  box.innerHTML = installHelpHtml("many");
-}
-
-async function analyzeUrl() {
-  const url = $("#import-url").value.trim();
-  const wanted = Math.min(20, Math.max(1, Number($("#import-pages").value) || 1));
-
-  if (!url) {
-    setStatus("Colle l'adresse d'une page.", "error");
-    return;
-  }
-
-  const viaExtension = EXT_HOSTS.has(hostOf(url));
-
-  if (viaExtension && !(await extensionAvailable())) {
-    showInstallHelp();
-    return;
-  }
-
-  setBusy(true);
-  const collected = [];
-  let sourceLabel = "";
-  let pages = wanted;
-
-  try {
-    for (let page = 1; page <= pages; page += 1) {
-      setStatus(`Lecture de la page ${page}/${pages}…`);
-      const result = viaExtension
-        ? await importPageViaExtension(pageUrl(url, page))
-        : await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url, page } });
-      sourceLabel = result.sourceLabel;
-      collected.push(...result.items);
-      if (page === 1) pages = Math.min(wanted, result.pageCount || 1);
-    }
-
-    setStatus("");
-    showReview(collected, sourceLabel);
-  } catch (error) {
-    if (collected.length) {
-      setStatus("");
-      showReview(collected, sourceLabel);
-      bridge().showFlash(`Import partiel : ${error.message}`, "error");
-    } else {
-      setStatus(error.message, "error");
-    }
-  } finally {
-    setBusy(false);
-  }
-}
-
 async function confirmImport() {
-  const chosen = session.items.filter((item) => item.selected && item.title.trim());
+  const chosen = session.items.filter((item) => item.selected);
 
   if (!chosen.length) return;
+
+  const missing = chosen.filter((item) => !item.title.trim());
+
+  if (missing.length) {
+    document.querySelectorAll("[data-import-card]").forEach((card) => {
+      const item = session.items[Number(card.dataset.importCard)];
+      card.classList.toggle("is-missing", Boolean(item?.selected && !item.title.trim()));
+    });
+    bridge().showFlash("Complète le titre des articles entourés en rouge (ou décoche-les).", "error");
+    return;
+  }
 
   session.busy = true;
   const button = $("[data-import-confirm]");
   button.disabled = true;
 
   try {
-    if (chosen.some((item) => item.needsPhoto)) {
-      button.textContent = "Téléchargement des photos…";
-      await session.photoJob;
-    }
-
     let done = 0;
     const pending = chosen.filter((item) => !item.imageId && item.imageData);
     let cursor = 0;
@@ -349,14 +234,13 @@ async function confirmImport() {
       await bridge().apiRequest("/api/catalog/items/bulk-create", {
         method: "POST",
         body: {
-          sourceLabel: session.sourceLabel,
+          sourceLabel: "Capture d'écran",
           items: chosen.slice(start, start + 100).map((item) => ({
             title: item.title,
             description: item.description || "",
             category: item.category,
-            priceEur: item.priceEur === "" ? null : item.priceEur,
+            priceEur: item.priceEur === "" || item.priceEur == null ? null : item.priceEur,
             imageId: item.imageId || "",
-            sourceUrl: item.sourceUrl || "",
           })),
         },
       });
@@ -376,218 +260,29 @@ async function confirmImport() {
 }
 
 function resetUi() {
-  session.token += 1;
   $("#import-sources").hidden = false;
   $("#import-review").hidden = true;
   $("#import-review").innerHTML = "";
   setStatus("");
-  setTab("url");
 }
 
-export function openImport({ existing = [], onDone, onAdded, tab = "url" } = {}) {
+export function openImport({ existing = [], onDone, onAdded } = {}) {
   session.existing = existing;
   session.onDone = onDone;
   session.onAdded = onAdded;
   resetUi();
-  resetSingle();
-  setTab(tab);
   bridge().openModal("import-modal");
-  (tab === "single" ? $("#single-url") : $("#import-url"))?.focus();
 }
 
-// --- Un seul article --------------------------------------------------------------------------
-const single = { imageData: "", remoteImage: "", categoryTouched: false };
-
-function resetSingle() {
-  single.imageData = "";
-  single.remoteImage = "";
-  single.categoryTouched = false;
-  ["#single-url", "#single-title", "#single-eur", "#single-mad", "#single-file"].forEach((selector) => {
-    const field = $(selector);
-    if (field) field.value = "";
-  });
-  const select = $("#single-category");
-  if (select) {
-    select.innerHTML = KNOWN.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
-    select.value = "Autres";
-  }
-  showSinglePhoto("");
-  const note = $("#single-note");
-  if (note) note.hidden = true;
-}
-
-function showSinglePhoto(src) {
-  const preview = $("#single-preview");
-  const text = $("#single-drop-text");
-  if (!preview || !text) return;
-  preview.hidden = !src;
-  if (src) preview.src = src;
-  text.hidden = Boolean(src);
-}
-
-function setSingleNote(message, tone = "info") {
-  const note = $("#single-note");
-  if (!note) return;
-  note.hidden = !message;
-  note.dataset.tone = tone;
-  note.innerHTML = message;
-}
-
-async function compressImageFile(file, maxSide = 900) {
-  const bitmap = await createImageBitmap(file);
-  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
-  canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const webp = canvas.toDataURL("image/webp", 0.82);
-  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.86);
-}
-
-function suggestSingleCategory() {
-  if (single.categoryTouched) return;
-  const title = $("#single-title").value;
-  if (title.trim().length > 2) $("#single-category").value = classifyTitle(title);
-}
-
-async function fillSingleFromLink() {
-  const url = $("#single-url").value.trim();
-
-  if (!url) {
-    setSingleNote("Colle d'abord le lien de l'article.", "error");
-    return;
-  }
-
-  // Ce qu'on peut déduire de l'adresse seule : le nom de l'article.
-  if (!$("#single-title").value.trim()) {
-    $("#single-title").value = titleFromUrl(url);
-    suggestSingleCategory();
-  }
-
-  const viaExtension = EXT_HOSTS.has(hostOf(url));
-
-  if (viaExtension && !(await extensionAvailable())) {
-    setSingleNote(installHelpHtml("single"));
-    $("#single-title").focus();
-    return;
-  }
-
-  const button = $("#single-fill");
-  button.disabled = true;
-  setSingleNote(viaExtension ? "Lecture de la page avec ton navigateur…" : "Lecture de la page…");
-
-  try {
-    const result = viaExtension
-      ? await importPageViaExtension(url)
-      : await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url } });
-
-    if (result.items.length > 3) {
-      $("#import-url").value = url;
-      setSingleNote(
-        `Cette page contient <strong>${result.items.length} articles</strong>. Pour tous les importer d'un coup, <a href="#" data-import-goto="url">utilise l'onglet « Plusieurs articles »</a>.`,
-      );
-      return;
-    }
-
-    const item = result.items[0];
-
-    $("#single-title").value = item.title;
-    if (item.priceEur) $("#single-eur").value = item.priceEur;
-    single.categoryTouched = false;
-    $("#single-category").value = item.category;
-
-    if (item.imageUrl && !single.imageData) {
-      single.remoteImage = item.imageUrl;
-      showSinglePhoto(item.imageUrl);
-    }
-
-    setSingleNote("Article lu : fixe ton prix en DH, puis ajoute.");
-  } catch (error) {
-    setSingleNote(
-      `${esc(error.message)} Le nom tiré du lien est gardé : ajoute la <strong>photo</strong> et le <strong>prix</strong> à la main.`,
-      "error",
-    );
-  } finally {
-    button.disabled = false;
-  }
-}
-
-async function addSingle() {
-  const title = $("#single-title").value.trim();
-
-  if (!title) {
-    setSingleNote("Indique le titre de l'article.", "error");
-    return;
-  }
-
-  const button = $("#single-add");
-  button.disabled = true;
-  button.textContent = "Ajout en cours…";
-
-  try {
-    let imageId = "";
-
-    if (single.imageData) {
-      imageId = (await bridge().apiRequest("/api/catalog/images", { method: "POST", body: { imageUpload: single.imageData } })).id;
-    } else if (single.remoteImage) {
-      const fetched = await bridge().apiRequest("/api/catalog/fetch-images", { method: "POST", body: { urls: [single.remoteImage] } });
-      imageId = fetched.results[0]?.imageId || "";
-    }
-
-    const eur = $("#single-eur").value;
-    const mad = $("#single-mad").value;
-
-    await bridge().apiRequest("/api/catalog/items/bulk-create", {
-      method: "POST",
-      body: {
-        sourceLabel: $("#single-url").value.trim() ? new URL($("#single-url").value.trim()).hostname.replace(/^www\./, "") : "Ajout manuel",
-        items: [
-          {
-            title,
-            category: $("#single-category").value,
-            priceEur: eur === "" ? null : Number(eur),
-            priceMad: mad === "" ? null : Number(mad),
-            imageId,
-            sourceUrl: $("#single-url").value.trim(),
-          },
-        ],
-      },
-    });
-
-    bridge().closeModal("import-modal");
-    bridge().showFlash(imageId ? "Article ajouté au catalogue." : "Article ajouté (sans photo).");
-    session.onAdded?.();
-    await session.onDone?.();
-  } catch (error) {
-    setSingleNote(esc(error.message), "error");
-  } finally {
-    button.disabled = false;
-    button.textContent = "Ajouter au catalogue";
-  }
-}
+const modalOpen = () => !$("#import-modal")?.hidden;
 
 if (!window.__abgImportBound) {
   window.__abgImportBound = true;
 
   document.addEventListener("click", (event) => {
     const target = event.target;
-    const tab = target.closest("[data-import-tab]");
-
-    if (tab) return setTab(tab.dataset.importTab);
-
-    const goto = target.closest("[data-import-goto]");
-    if (goto) {
-      event.preventDefault();
-      setStatus("");
-      setTab(goto.dataset.importGoto);
-      return;
-    }
-
-    if (target.closest("#single-fill")) return void fillSingleFromLink();
-    if (target.closest("#single-add")) return void addSingle();
-    if (target.closest("#import-url-go")) return void analyzeUrl();
-
     const select = target.closest("[data-import-select]");
+
     if (select) {
       const item = session.items[Number(select.dataset.importSelect)];
       item.selected = !item.selected;
@@ -606,61 +301,40 @@ if (!window.__abgImportBound) {
     if (target.closest("[data-import-confirm]")) return void confirmImport();
   });
 
-  document.addEventListener("input", (event) => {
-    if (event.target.id === "single-title") suggestSingleCategory();
-  });
-
-  document.addEventListener("change", async (event) => {
-    if (event.target.id === "single-category") single.categoryTouched = true;
-
-    if (event.target.id === "single-file" && event.target.files?.[0]) {
-      try {
-        single.imageData = await compressImageFile(event.target.files[0]);
-        single.remoteImage = "";
-        showSinglePhoto(single.imageData);
-      } catch {
-        setSingleNote("Impossible de lire cette image.", "error");
-      }
+  document.addEventListener("change", (event) => {
+    if (event.target.id === "import-files") {
+      void analyzeFiles(event.target.files ?? []);
       return;
     }
 
     const field = event.target.closest("[data-import-field]");
+
     if (field) {
       const item = session.items[Number(field.dataset.importIndex)];
       const key = field.dataset.importField;
       item[key] = key === "priceEur" ? (field.value === "" ? "" : Number(field.value)) : field.value;
+      if (key === "title") field.closest(".import-card")?.classList.remove("is-missing");
     }
   });
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.target.id === "import-url") {
+  // Capture collée (Ctrl/Cmd + V) ou glissée dans la fenêtre.
+  document.addEventListener("paste", (event) => {
+    if (!modalOpen() || session.busy || $("#import-sources").hidden) return;
+    const images = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+    if (images.length) {
       event.preventDefault();
-      void analyzeUrl();
-    }
-
-    if (event.key === "Enter" && event.target.id === "single-url") {
-      event.preventDefault();
-      void fillSingleFromLink();
+      void analyzeFiles(images);
     }
   });
 
-  // Un lien collé dans « 1 article » est lu tout de suite ; une image copiée (Ctrl+V) devient la photo.
-  document.addEventListener("paste", async (event) => {
-    if (event.target.id === "single-url") setTimeout(() => void fillSingleFromLink(), 80);
+  document.addEventListener("dragover", (event) => {
+    if (modalOpen() && event.target.closest?.("#import-dropzone")) event.preventDefault();
+  });
 
-    const pane = $('[data-import-pane="single"]');
-    const image = [...(event.clipboardData?.files ?? [])].find((file) => file.type.startsWith("image/"));
-
-    if (image && pane && !pane.hidden) {
+  document.addEventListener("drop", (event) => {
+    if (modalOpen() && event.target.closest?.("#import-dropzone")) {
       event.preventDefault();
-      try {
-        single.imageData = await compressImageFile(image);
-        single.remoteImage = "";
-        showSinglePhoto(single.imageData);
-        setSingleNote("Photo collée ✓ — vérifie le prix, puis ajoute.");
-      } catch {
-        setSingleNote("Impossible de lire cette image.", "error");
-      }
+      if (!session.busy) void analyzeFiles(event.dataTransfer?.files ?? []);
     }
   });
 }

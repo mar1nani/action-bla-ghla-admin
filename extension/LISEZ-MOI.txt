@@ -1,8 +1,0 @@
-Extension « Action bla ghla — Import »
-
-1. Ouvre chrome://extensions dans Chrome.
-2. Active « Mode développeur » (en haut à droite).
-3. Clique sur « Charger l'extension non empaquetée » et choisis CE dossier.
-4. Recharge ton application, puis relance l'import avec le lien.
-
-L'extension ne sert qu'à lire les pages www.action.com avec ton navigateur quand tu colles un lien dans l'application.

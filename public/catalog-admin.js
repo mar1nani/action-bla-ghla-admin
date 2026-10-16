@@ -152,8 +152,8 @@ function render() {
       <div class="g-empty cat-empty">
         <span class="g-empty-icon">${icon("tag")}</span>
         <strong>Ton catalogue est vide</strong>
-        <p>Importe des articles depuis un lien, un PDF ou le code d'une page : tu n'auras plus qu'à mettre tes prix en dirhams.</p>
-        <button class="primary-button" type="button" data-cat-import>Importer des articles</button>
+        <p>Fais une capture d'écran d'un article ou d'une liste : le titre, la photo et la catégorie se remplissent tout seuls. Tu n'auras plus qu'à mettre tes prix en dirhams.</p>
+        <button class="primary-button" type="button" data-cat-import>📸 Ajouter depuis une capture</button>
       </div>`;
     return;
   }
@@ -395,15 +395,14 @@ function refreshSummary() {
 
 // --- Événements ----------------------------------------------------------------
 document.addEventListener("click", async (event) => {
-  if (document.body.dataset.page !== "showcase" && !event.target.closest("#showcase-import-button, #showcase-add-button")) return;
+  if (document.body.dataset.page !== "showcase" && !event.target.closest("#showcase-import-button")) return;
 
   const target = event.target;
 
-  if (target.closest("#showcase-import-button, #showcase-add-button, [data-cat-import]")) {
+  if (target.closest("#showcase-import-button, [data-cat-import]")) {
     const module = await import("/catalog-import.js");
     module.openImport({
       existing: catalog.items,
-      tab: target.closest("#showcase-add-button") ? "single" : "url",
       onDone: () => loadCatalog(true),
       onAdded: () => (catalog.filter.status = "todo"),
     });
