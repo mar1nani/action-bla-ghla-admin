@@ -144,16 +144,16 @@ Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées c�
 
 ## Catalogue clients (vitrine « Boutique »)
 
-- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). **📸 Ajouter depuis une capture** : fais une capture d'écran d'un article
-  ou d'une page d'articles (site, catalogue, prospectus), envoie-la (choisir, glisser ou **Ctrl+V**) : l'IA (Claude) lit le **titre**,
-  découpe la **photo**, choisit la **catégorie** (et le **prix en €** s'il est visible). Tu vérifies, puis les articles arrivent en brouillon.
-  Ensuite : **Chiffrer en DH** (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
-  - **IA gratuite (recommandé)** : `GEMINI_API_KEY` (clé gratuite, sans carte bancaire, sur https://aistudio.google.com/apikey). Modèle par défaut :
-    alias `gemini-flash-latest` (repli automatique sur `gemini-2.5-flash` puis `gemini-2.0-flash`) ; `GEMINI_MODEL` pour en imposer un autre.
-    L'offre gratuite a des quotas par minute et par jour, et Google peut utiliser les images envoyées pour améliorer ses produits
-    (ne pas envoyer de données confidentielles).
-  - **Option payante** : `ANTHROPIC_API_KEY` (Claude, `CLAUDE_VISION_MODEL`, défaut `claude-opus-5-5`) — utilisée seulement si `GEMINI_API_KEY` est absente.
-  - Sans clé, la capture est ajoutée telle quelle et il suffit de saisir le titre à la main.
+- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). **📋 Ajouter des articles** :
+  - **Code de la page (principal)** : ouvre la page d'un article ou d'une liste d'articles (ex. Action), affiche son code (Cmd+Option+U / Ctrl+U,
+    ou `view-source:` devant l'adresse sur Android), sélectionne tout, copie et colle. Plusieurs pages : colle-les à la suite. L'app lit le titre,
+    le prix en €, la photo, la catégorie (données structurées JSON-LD, cartes produit, OpenGraph). Sur la fiche d'un article, seul l'article est pris
+    (pas les « produits similaires »). Photo introuvable : bouton « Ajouter la photo » sur la carte.
+  - **📸 Capture (IA)** : capture d'écran lue par une IA (titre, photo découpée, catégorie, prix). Clé gratuite `GEMINI_API_KEY`
+    (https://aistudio.google.com/apikey) ou option payante `ANTHROPIC_API_KEY` ; `GEMINI_MODEL` / `CLAUDE_VISION_MODEL` pour imposer un modèle.
+    Quotas gratuits limités ; Google peut utiliser les images envoyées pour améliorer ses produits.
+  Les articles arrivent en brouillon : ensuite **Chiffrer en DH** (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
+  `GET /api/health` affiche `"ai"` (gemini | claude | null) pour vérifier que la clé est reçue.
 - **Public** : `/boutique` — catalogue haut de gamme par catégories, recherche, fiche article, bouton « Commander sur WhatsApp »
   (numéro réglable dans « Réglages de la vitrine »). API publique : `GET /api/public/showcase`.
 - Les photos du catalogue sont stockées **hors du document principal** : table `app_images` (créée automatiquement, `CREATE TABLE IF NOT EXISTS`),

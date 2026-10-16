@@ -152,8 +152,8 @@ function render() {
       <div class="g-empty cat-empty">
         <span class="g-empty-icon">${icon("tag")}</span>
         <strong>Ton catalogue est vide</strong>
-        <p>Fais une capture d'écran d'un article ou d'une liste : le titre, la photo et la catégorie se remplissent tout seuls. Tu n'auras plus qu'à mettre tes prix en dirhams.</p>
-        <button class="primary-button" type="button" data-cat-import>📸 Ajouter depuis une capture</button>
+        <p>Colle le code de la page d'un article ou d'une liste d'articles : le titre, la photo et la catégorie se remplissent tout seuls. Tu n'auras plus qu'à mettre tes prix en dirhams.</p>
+        <button class="primary-button" type="button" data-cat-import>📋 Ajouter des articles</button>
       </div>`;
     return;
   }

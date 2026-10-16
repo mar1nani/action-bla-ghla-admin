@@ -1298,7 +1298,7 @@
                 <p class="gallery-sub">Ajoute des articles en masse, mets ton prix en dirhams, puis publie.</p>
               </div>
               <div class="showcase-actions">
-                <button id="showcase-import-button" class="primary-button" type="button">📸 Ajouter depuis une capture</button>
+                <button id="showcase-import-button" class="primary-button" type="button">📋 Ajouter des articles</button>
                 <a id="showcase-open" class="ghost-button" href="/boutique" target="_blank" rel="noopener">Voir la boutique ↗</a>
               </div>
             </div>
@@ -1551,18 +1551,40 @@
             <div class="modal-head">
               <div>
                 <p class="eyebrow">Catalogue clients</p>
-                <h3>Ajouter depuis une capture</h3>
+                <h3>Ajouter des articles</h3>
               </div>
               <button class="modal-close" type="button" data-close-modal="import-modal" aria-label="Fermer la fenêtre">×</button>
             </div>
             <div id="import-sources">
-              <label class="import-drop" for="import-files" id="import-dropzone">
-                <strong>📸 Ajouter une capture d'écran</strong>
-                <span>Fais une capture d'un article ou d'une page avec plusieurs articles, puis choisis-la ici, glisse-la, ou colle-la avec <kbd>Ctrl</kbd> + <kbd>V</kbd>.</span>
-                <span class="import-drop-button">Choisir une capture</span>
-                <input id="import-files" type="file" accept="image/*" multiple hidden />
-              </label>
-              <p class="import-hint">L'IA lit le <strong>titre</strong>, découpe la <strong>photo</strong> et choisit la <strong>catégorie</strong> (et le prix en € s'il est visible). Tu vérifies tout avant d'ajouter. Jusqu'à 10 captures à la fois.</p>
+              <div class="import-tabs" role="tablist">
+                <button type="button" class="import-tab is-active" data-import-tab="html">📋 Code de la page</button>
+                <button type="button" class="import-tab" data-import-tab="capture">📸 Capture (IA)</button>
+              </div>
+              <div class="import-pane" data-import-pane="html">
+                <ol class="import-steps">
+                  <li>Ouvre la page d'<strong>un article</strong> ou d'<strong>une liste d'articles</strong> dans ton navigateur.</li>
+                  <li><strong>Ordinateur :</strong> <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>U</kbd> (Windows : <kbd>Ctrl</kbd>+<kbd>U</kbd>) affiche le code. <strong>Android (Chrome) :</strong> écris <code>view-source:</code> juste avant l'adresse de la page.</li>
+                  <li>Sélectionne tout (<kbd>Cmd</kbd>+<kbd>A</kbd>), copie (<kbd>Cmd</kbd>+<kbd>C</kbd>) et colle ci-dessous. Pour plusieurs pages, colle-les <strong>à la suite</strong>.</li>
+                </ol>
+                <label class="field">
+                  <span>Code de la page</span>
+                  <textarea id="import-html" rows="5" placeholder="Colle ici le code de la page (ou de plusieurs pages)…"></textarea>
+                </label>
+                <label class="field">
+                  <span>Adresse de la page <em>(facultatif, détectée automatiquement)</em></span>
+                  <input id="import-html-base" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/p/…" autocomplete="off" />
+                </label>
+                <button id="import-html-go" class="primary-button" type="button">Analyser le code</button>
+              </div>
+              <div class="import-pane" data-import-pane="capture" hidden>
+                <label class="import-drop" for="import-files" id="import-dropzone">
+                  <strong>📸 Ajouter une capture d'écran</strong>
+                  <span>Fais une capture d'un article ou d'une page d'articles, puis choisis-la, glisse-la, ou colle-la avec <kbd>Ctrl</kbd> + <kbd>V</kbd>.</span>
+                  <span class="import-drop-button">Choisir une capture</span>
+                  <input id="import-files" type="file" accept="image/*" multiple hidden />
+                </label>
+                <p class="import-hint">L'IA lit le titre, découpe la photo et choisit la catégorie. Elle demande une clé gratuite côté serveur ; tu vérifies tout avant d'ajouter.</p>
+              </div>
             </div>
             <div id="import-status" class="import-status" hidden></div>
             <div id="import-review" class="import-review" hidden></div>

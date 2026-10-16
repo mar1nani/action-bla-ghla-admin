@@ -1703,3 +1703,6 @@ body {
 
 .import-drop-button { justify-self: center; margin-top: 6px; padding: 12px 22px; border-radius: 14px; background: linear-gradient(135deg, var(--brand-blue), var(--brand-navy)); color: #fff; font-weight: 800; box-shadow: 0 10px 22px -12px rgba(10, 127, 126, 0.8); }
 .import-drop .import-drop-button { color: #fff; font-size: 1rem; }
+
+.import-photo-add { display: grid; place-items: center; height: 100%; padding: 8px; color: var(--brand-blue); font-weight: 800; font-size: 0.8rem; text-align: center; cursor: pointer; }
+.import-pane { margin-bottom: 10px; }
