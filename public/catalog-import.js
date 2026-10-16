@@ -239,23 +239,29 @@ async function importPageViaExtension(url) {
   });
 }
 
-function installHelpHtml() {
+function adminInstallHtml() {
   return `
-    <div class="ext-help">
-    <strong>Action refuse les serveurs : installe l'extension Chrome (1 minute, une seule fois).</strong>
-    <ol class="import-steps">
-      <li><a class="ghost-button" href="/abg-extension.zip" download>⬇ Télécharger l'extension</a> puis ouvre le fichier : il se décompresse en un dossier.</li>
-      <li>Dans Chrome, écris <code>chrome://extensions</code> dans la barre d'adresse, active <em>Mode développeur</em> (en haut à droite), clique <em>Charger l'extension non empaquetée</em> et choisis ce dossier.</li>
-      <li><strong>Recharge cette page</strong>, puis recolle ton lien.</li>
-    </ol>
-    </div>`;
+    <details class="ext-admin">
+      <summary>Réservé à l'administrateur : installer l'extension Chrome (une seule fois)</summary>
+      <ol class="import-steps">
+        <li><a class="ghost-button" href="/abg-extension.zip" download>⬇ Télécharger l'extension</a> puis ouvre le fichier : il se décompresse en un dossier.</li>
+        <li>Dans Chrome, écris <code>chrome://extensions</code>, active <em>Mode développeur</em> (en haut à droite), clique <em>Charger l'extension non empaquetée</em> et choisis ce dossier.</li>
+        <li>Recharge l'application : le lien Action fonctionne alors sur cet ordinateur.</li>
+      </ol>
+    </details>`;
+}
+
+function installHelpHtml(kind = "many") {
+  return kind === "single"
+    ? `<div class="ext-help"><span><strong>Action ne permet pas la lecture automatique.</strong> J'ai gardé le <strong>nom</strong> et la <strong>catégorie</strong> : ajoute la <strong>photo</strong> (clic droit sur l'image du site → <em>Copier l'image</em>, puis <kbd>Ctrl</kbd>+<kbd>V</kbd> ici) et le <strong>prix</strong>.</span>${adminInstallHtml()}</div>`
+    : `<div class="ext-help"><span><strong>Action ne permet pas la lecture automatique de ses pages.</strong> Pour importer beaucoup d'articles d'un coup, il faut l'extension Chrome ; sinon ajoute-les un par un avec l'onglet « 1 article ».</span>${adminInstallHtml()}</div>`;
 }
 
 function showInstallHelp() {
   const box = $("#import-status");
   box.hidden = false;
   box.dataset.tone = "info";
-  box.innerHTML = installHelpHtml();
+  box.innerHTML = installHelpHtml("many");
 }
 
 async function analyzeUrl() {
@@ -461,7 +467,8 @@ async function fillSingleFromLink() {
   const viaExtension = EXT_HOSTS.has(hostOf(url));
 
   if (viaExtension && !(await extensionAvailable())) {
-    setSingleNote(installHelpHtml());
+    setSingleNote(installHelpHtml("single"));
+    $("#single-title").focus();
     return;
   }
 
@@ -637,8 +644,23 @@ if (!window.__abgImportBound) {
     }
   });
 
-  // Un lien collé dans « 1 article » est lu tout de suite.
-  document.addEventListener("paste", (event) => {
+  // Un lien collé dans « 1 article » est lu tout de suite ; une image copiée (Ctrl+V) devient la photo.
+  document.addEventListener("paste", async (event) => {
     if (event.target.id === "single-url") setTimeout(() => void fillSingleFromLink(), 80);
+
+    const pane = $('[data-import-pane="single"]');
+    const image = [...(event.clipboardData?.files ?? [])].find((file) => file.type.startsWith("image/"));
+
+    if (image && pane && !pane.hidden) {
+      event.preventDefault();
+      try {
+        single.imageData = await compressImageFile(image);
+        single.remoteImage = "";
+        showSinglePhoto(single.imageData);
+        setSingleNote("Photo collée ✓ — vérifie le prix, puis ajoute.");
+      } catch {
+        setSingleNote("Impossible de lire cette image.", "error");
+      }
+    }
   });
 }

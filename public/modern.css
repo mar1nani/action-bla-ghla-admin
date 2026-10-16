@@ -1690,3 +1690,9 @@ body {
 .ext-help .import-steps { margin: 0; }
 .ext-help .ghost-button { display: inline-flex; margin-right: 6px; text-decoration: none; padding: 8px 12px; font-weight: 800; }
 #single-note .ext-help { padding: 12px; border-radius: 14px; background: var(--surface-2); }
+
+.ext-help > span { line-height: 1.5; }
+.ext-help kbd { padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 6px; background: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; }
+.ext-admin { padding: 10px 12px; border-radius: 12px; background: rgba(8, 52, 60, 0.05); font-size: 0.85rem; }
+.ext-admin summary { cursor: pointer; font-weight: 800; color: var(--ink-soft); }
+.ext-admin .import-steps { margin-top: 10px; }
