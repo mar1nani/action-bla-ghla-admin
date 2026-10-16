@@ -144,12 +144,16 @@ Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées c�
 
 ## Catalogue clients (vitrine « Boutique »)
 
-- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). **Importer des articles** depuis :
-  - un **lien** de page catégorie/liste (ex. `https://www.action.com/fr-fr/c/cuisine/`, plusieurs pages d'un coup) ;
-  - un **PDF** de catalogue (lu dans le navigateur : photos, titres, prix détectés page par page) ;
-  - le **code d'une page** collé à la main (quand un site bloque la lecture automatique).
+- **Admin** : menu « Catalogue clients » (ou Ventes → Catalogue). Deux façons d'ajouter des articles :
+  - **🔗 Plusieurs articles** : colle le lien d'une page de catégorie (ex. `https://www.action.com/fr-fr/c/cuisine/`, plusieurs pages d'un coup) ;
+  - **➕ 1 article** : colle le lien d'une fiche produit ; nom, prix en €, photo et catégorie sont remplis (sinon : photo et prix à la main).
   Les articles arrivent en brouillon avec photo, titre, prix source en € et catégorie devinée. Ensuite : **Chiffrer en DH**
   (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
+- **Action et l'extension Chrome** : `action.com` refuse les serveurs d'hébergement (protection anti-robots). Pour lire ses pages, installe une fois
+  l'extension `extension/` (téléchargeable dans l'app : `/abg-extension.zip`) : Chrome → `chrome://extensions` → Mode développeur →
+  Charger l'extension non empaquetée. L'extension lit la page avec TON navigateur, l'app l'analyse. Les autres sites se lisent directement par le serveur.
+  Pour un autre domaine d'application que `*.vercel.app` / `*.onrender.com`, ajoute-le dans `extension/manifest.json` (`content_scripts.matches`),
+  puis régénère le zip : `cd extension && zip -r ../public/abg-extension.zip . -x '.*'`.
 - **Public** : `/boutique` — catalogue haut de gamme par catégories, recherche, fiche article, bouton « Commander sur WhatsApp »
   (numéro réglable dans « Réglages de la vitrine »). API publique : `GET /api/public/showcase`.
 - Les photos du catalogue sont stockées **hors du document principal** : table `app_images` (créée automatiquement, `CREATE TABLE IF NOT EXISTS`),

@@ -1,4 +1,5 @@
-// Catalogue clients — import en masse : lien, PDF ou code de page, puis vérification avant ajout.
+// Catalogue clients — import par lien (plusieurs articles ou un seul), puis vérification avant ajout.
+// Pour les sites qui refusent les serveurs (Action), la page est lue par l'extension Chrome de l'utilisateur.
 
 import { classifyTitle, titleFromUrl } from "/shared/classify.js";
 
@@ -182,12 +183,94 @@ function refreshFooter() {
   if (all) all.textContent = selected === session.items.length ? "Tout décocher" : "Tout cocher";
 }
 
+// --- Extension Chrome (lecture des pages avec le navigateur de l'utilisateur) -----------------
+const EXT_HOSTS = new Set(["www.action.com"]);
+const hostOf = (value) => {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return "";
+  }
+};
+
+function extCall(payload, timeoutMs) {
+  return new Promise((resolve) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const onMessage = (event) => {
+      if (event.source === window && event.data?.source === "abg-ext" && event.data.id === id) {
+        clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        resolve(event.data);
+      }
+    };
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onMessage);
+      resolve(null);
+    }, timeoutMs);
+    window.addEventListener("message", onMessage);
+    window.postMessage({ source: "abg-app", id, ...payload }, "*");
+  });
+}
+
+async function extensionAvailable() {
+  return (await extCall({ type: "ping" }, 800))?.type === "pong";
+}
+
+const slimHtml = (html) =>
+  html.replace(/<script(?![^>]*ld\+json)[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+
+function pageUrl(url, page) {
+  const target = new URL(url);
+  target.hash = "";
+  if (page > 1) target.searchParams.set("page", String(page));
+  return target.href;
+}
+
+/** Lit une page avec l'extension, puis la fait analyser par le serveur (qui ne contacte pas le site). */
+async function importPageViaExtension(url) {
+  const result = await extCall({ type: "fetch", url }, 90_000);
+
+  if (!result) throw new Error("L'extension ne répond pas. Recharge la page.");
+  if (!result.ok) throw new Error(result.error || "La page n'a pas pu être lue.");
+
+  return bridge().apiRequest("/api/catalog/import-url", {
+    method: "POST",
+    body: { html: slimHtml(result.html), baseUrl: url },
+  });
+}
+
+function installHelpHtml() {
+  return `
+    <div class="ext-help">
+    <strong>Action refuse les serveurs : installe l'extension Chrome (1 minute, une seule fois).</strong>
+    <ol class="import-steps">
+      <li><a class="ghost-button" href="/abg-extension.zip" download>⬇ Télécharger l'extension</a> puis ouvre le fichier : il se décompresse en un dossier.</li>
+      <li>Dans Chrome, écris <code>chrome://extensions</code> dans la barre d'adresse, active <em>Mode développeur</em> (en haut à droite), clique <em>Charger l'extension non empaquetée</em> et choisis ce dossier.</li>
+      <li><strong>Recharge cette page</strong>, puis recolle ton lien.</li>
+    </ol>
+    </div>`;
+}
+
+function showInstallHelp() {
+  const box = $("#import-status");
+  box.hidden = false;
+  box.dataset.tone = "info";
+  box.innerHTML = installHelpHtml();
+}
+
 async function analyzeUrl() {
   const url = $("#import-url").value.trim();
   const wanted = Math.min(20, Math.max(1, Number($("#import-pages").value) || 1));
 
   if (!url) {
     setStatus("Colle l'adresse d'une page.", "error");
+    return;
+  }
+
+  const viaExtension = EXT_HOSTS.has(hostOf(url));
+
+  if (viaExtension && !(await extensionAvailable())) {
+    showInstallHelp();
     return;
   }
 
@@ -199,7 +282,9 @@ async function analyzeUrl() {
   try {
     for (let page = 1; page <= pages; page += 1) {
       setStatus(`Lecture de la page ${page}/${pages}…`);
-      const result = await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url, page } });
+      const result = viaExtension
+        ? await importPageViaExtension(pageUrl(url, page))
+        : await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url, page } });
       sourceLabel = result.sourceLabel;
       collected.push(...result.items);
       if (page === 1) pages = Math.min(wanted, result.pageCount || 1);
@@ -213,89 +298,10 @@ async function analyzeUrl() {
       showReview(collected, sourceLabel);
       bridge().showFlash(`Import partiel : ${error.message}`, "error");
     } else {
-      const blockedHint = /bloque|robots/i.test(error.message)
-        ? `<a class="ghost-button" href="${esc(url)}" target="_blank" rel="noopener">1. Ouvrir la page</a><button class="ghost-button" type="button" data-import-goto="html">2. Coller son code</button><button class="ghost-button" type="button" data-import-goto="pdf">PDF</button>`
-        : "";
-      setStatus(error.message, "error", blockedHint);
+      setStatus(error.message, "error");
     }
   } finally {
     setBusy(false);
-  }
-}
-
-async function analyzeHtml() {
-  const raw = $("#import-html").value.trim();
-  const baseUrl = $("#import-html-base").value.trim();
-
-  if (raw.length < 500) {
-    setStatus("Colle d'abord le code de la page (Sélectionner tout, Copier, Coller).", "error");
-    return;
-  }
-
-  // Plusieurs pages collées à la suite : on les sépare à chaque <!DOCTYPE html>.
-  const pages = raw.split(/(?=<!doctype\s+html)/i).filter((part) => part.trim().length > 500);
-  const parts = pages.length ? pages : [raw];
-
-  setBusy(true);
-  const collected = [];
-  let sourceLabel = "";
-  let lastError = "";
-
-  try {
-    for (const [index, html] of parts.entries()) {
-      setStatus(parts.length > 1 ? `Analyse de la page ${index + 1}/${parts.length}…` : "Analyse du code…");
-
-      try {
-        const result = await bridge().apiRequest("/api/catalog/import-url", {
-          method: "POST",
-          body: { html, baseUrl },
-        });
-        sourceLabel = result.sourceLabel;
-        collected.push(...result.items);
-      } catch (error) {
-        lastError = error.message;
-      }
-    }
-
-    if (!collected.length) {
-      setStatus(lastError || "Aucun article reconnu dans ce code.", "error");
-      return;
-    }
-
-    setStatus("");
-    showReview(collected, sourceLabel);
-  } finally {
-    setBusy(false);
-  }
-}
-
-async function analyzePdf(file) {
-  if (!file) return;
-
-  setBusy(true);
-  setStatus("Chargement du lecteur PDF…");
-
-  try {
-    const { extractPdfItems } = await import("/catalog-pdf.js");
-    const items = await extractPdfItems(file, {
-      onProgress: (page, total, found) => setStatus(`Page ${page}/${total} — ${found} article${found > 1 ? "s" : ""} détecté${found > 1 ? "s" : ""}…`),
-    });
-
-    if (!items.length) {
-      setStatus(
-        "Aucun article reconnu dans ce PDF (les pages sont peut-être des images entières). Envoie-moi ce PDF et j'adapterai la détection.",
-        "error",
-      );
-      return;
-    }
-
-    setStatus("");
-    showReview(items, file.name.replace(/\.pdf$/i, ""));
-  } catch (error) {
-    setStatus(`Lecture du PDF impossible : ${error.message}`, "error");
-  } finally {
-    setBusy(false);
-    $("#import-pdf-file").value = "";
   }
 }
 
@@ -372,76 +378,11 @@ function resetUi() {
   setTab("url");
 }
 
-// Favori « 1 clic » : exécuté sur la page du site (dans le navigateur de l'utilisateur). Il lit la page courante et
-// les suivantes (?page=N), puis ouvre l'app et lui transmet le code des pages par postMessage.
-function bookmarkletSource(appOrigin) {
-  const run = async (APP) => {
-    const target = window.open(APP + "/showcase#import", "_blank");
-    if (!target) {
-      alert("Autorise les fenêtres pop-up pour ce site, puis réessaie.");
-      return;
-    }
-    let ready = false;
-    let pages = null;
-    const push = () => {
-      if (ready && pages) {
-        target.postMessage({ type: "abg-import", pages: pages }, APP);
-        window.removeEventListener("message", onMessage);
-      }
-    };
-    const onMessage = (event) => {
-      if (event.source === target && event.data === "abg-ready") {
-        ready = true;
-        push();
-      }
-    };
-    window.addEventListener("message", onMessage);
-    const answer = prompt("Combien de pages importer ? (environ 24 articles par page)", "1");
-    if (!answer) {
-      target.close();
-      window.removeEventListener("message", onMessage);
-      return;
-    }
-    const count = Math.max(1, Math.min(30, parseInt(answer, 10) || 1));
-    const slim = (html) => html.replace(/<script(?![^>]*ld\+json)[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
-    const collected = [{ url: location.href, html: slim(document.documentElement.outerHTML) }];
-    for (let page = 2; page <= count; page += 1) {
-      const next = new URL(location.href);
-      next.searchParams.set("page", page);
-      next.hash = "";
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 350));
-        const response = await fetch(next.href, { credentials: "same-origin" });
-        if (!response.ok) break;
-        collected.push({ url: next.href, html: slim(await response.text()) });
-      } catch (error) {
-        break;
-      }
-    }
-    pages = collected;
-    push();
-  };
-  const code = run.toString().replace(/\s*\n\s*/g, " ");
-  return `javascript:(${code})(${JSON.stringify(appOrigin)});void 0`;
-}
-
-function prepareBookmarklet() {
-  const link = $("#import-bookmarklet");
-  if (link) {
-    link.href = bookmarkletSource(location.origin);
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      bridge().showFlash("Glisse ce bouton dans ta barre de favoris (ne clique pas dessus ici).", "error");
-    });
-  }
-}
-
 export function openImport({ existing = [], onDone, onAdded, tab = "url" } = {}) {
   session.existing = existing;
   session.onDone = onDone;
   session.onAdded = onAdded;
   resetUi();
-  prepareBookmarklet();
   resetSingle();
   setTab(tab);
   bridge().openModal("import-modal");
@@ -517,17 +458,26 @@ async function fillSingleFromLink() {
     suggestSingleCategory();
   }
 
+  const viaExtension = EXT_HOSTS.has(hostOf(url));
+
+  if (viaExtension && !(await extensionAvailable())) {
+    setSingleNote(installHelpHtml());
+    return;
+  }
+
   const button = $("#single-fill");
   button.disabled = true;
-  setSingleNote("Lecture de la page…");
+  setSingleNote(viaExtension ? "Lecture de la page avec ton navigateur…" : "Lecture de la page…");
 
   try {
-    const result = await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url } });
+    const result = viaExtension
+      ? await importPageViaExtension(url)
+      : await bridge().apiRequest("/api/catalog/import-url", { method: "POST", body: { url } });
 
     if (result.items.length > 3) {
       $("#import-url").value = url;
       setSingleNote(
-        `Cette page contient <strong>${result.items.length} articles</strong>. Pour tous les importer d'un coup, <a href="#" data-import-goto="url">utilise l'onglet Lien</a>.`,
+        `Cette page contient <strong>${result.items.length} articles</strong>. Pour tous les importer d'un coup, <a href="#" data-import-goto="url">utilise l'onglet « Plusieurs articles »</a>.`,
       );
       return;
     }
@@ -544,14 +494,11 @@ async function fillSingleFromLink() {
       showSinglePhoto(item.imageUrl);
     }
 
-    setSingleNote("Page lue : vérifie les informations, fixe ton prix en DH, puis ajoute.");
+    setSingleNote("Article lu : fixe ton prix en DH, puis ajoute.");
   } catch (error) {
-    const blocked = /bloque|robots/i.test(error.message);
     setSingleNote(
-      blocked
-        ? `Ce site refuse la lecture automatique : j'ai gardé le <strong>nom</strong> tiré du lien. Ajoute la <strong>photo</strong> et le <strong>prix</strong> à la main, ou <a href="#" data-import-goto="html">colle le code de la page</a> pour tout remplir.`
-        : esc(error.message),
-      blocked ? "info" : "error",
+      `${esc(error.message)} Le nom tiré du lien est gardé : ajoute la <strong>photo</strong> et le <strong>prix</strong> à la main.`,
+      "error",
     );
   } finally {
     button.disabled = false;
@@ -612,55 +559,6 @@ async function addSingle() {
   }
 }
 
-/** Affiche la fenêtre d'import en attente des pages envoyées par le favori. */
-export function showWaiting() {
-  resetUi();
-  prepareBookmarklet();
-  bridge().openModal("import-modal");
-  setStatus("En attente des pages du site… (réponds à la question affichée sur l'autre onglet)");
-}
-
-/** Reçoit les pages envoyées par le favori : analyse chaque page (sans lire le site depuis le serveur). */
-export async function importFromPages(pages, { existing = [], onDone, onAdded } = {}) {
-  session.existing = existing;
-  session.onDone = onDone;
-  session.onAdded = onAdded;
-  resetUi();
-  prepareBookmarklet();
-  bridge().openModal("import-modal");
-  setBusy(true);
-
-  const collected = [];
-  let sourceLabel = "";
-  let lastError = "";
-
-  try {
-    for (const [index, page] of pages.entries()) {
-      setStatus(`Analyse de la page ${index + 1}/${pages.length}…`);
-      try {
-        const result = await bridge().apiRequest("/api/catalog/import-url", {
-          method: "POST",
-          body: { html: page.html, baseUrl: page.url },
-        });
-        sourceLabel = result.sourceLabel;
-        collected.push(...result.items);
-      } catch (error) {
-        lastError = error.message;
-      }
-    }
-
-    if (!collected.length) {
-      setStatus(lastError || "Aucun article reconnu sur ces pages.", "error");
-      return;
-    }
-
-    setStatus("");
-    showReview(collected, sourceLabel);
-  } finally {
-    setBusy(false);
-  }
-}
-
 if (!window.__abgImportBound) {
   window.__abgImportBound = true;
 
@@ -674,20 +572,13 @@ if (!window.__abgImportBound) {
     if (goto) {
       event.preventDefault();
       setStatus("");
-      if (goto.dataset.importGoto === "html" && $("#single-url")?.value.trim() && !$("#import-url").value.trim()) {
-        $("#import-url").value = $("#single-url").value.trim();
-      }
-      if (goto.dataset.importGoto === "html" && $("#import-url").value.trim()) {
-        $("#import-html-base").value = $("#import-url").value.trim();
-      }
       setTab(goto.dataset.importGoto);
-      return $("#import-html")?.focus();
+      return;
     }
 
     if (target.closest("#single-fill")) return void fillSingleFromLink();
     if (target.closest("#single-add")) return void addSingle();
     if (target.closest("#import-url-go")) return void analyzeUrl();
-    if (target.closest("#import-html-go")) return void analyzeHtml();
 
     const select = target.closest("[data-import-select]");
     if (select) {
@@ -726,11 +617,6 @@ if (!window.__abgImportBound) {
       return;
     }
 
-    if (event.target.id === "import-pdf-file") {
-      void analyzePdf(event.target.files?.[0]);
-      return;
-    }
-
     const field = event.target.closest("[data-import-field]");
     if (field) {
       const item = session.items[Number(field.dataset.importIndex)];
@@ -744,5 +630,15 @@ if (!window.__abgImportBound) {
       event.preventDefault();
       void analyzeUrl();
     }
+
+    if (event.key === "Enter" && event.target.id === "single-url") {
+      event.preventDefault();
+      void fillSingleFromLink();
+    }
+  });
+
+  // Un lien collé dans « 1 article » est lu tout de suite.
+  document.addEventListener("paste", (event) => {
+    if (event.target.id === "single-url") setTimeout(() => void fillSingleFromLink(), 80);
   });
 }

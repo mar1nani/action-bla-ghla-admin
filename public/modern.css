@@ -1685,3 +1685,8 @@ body {
 #single-note[data-tone="error"] { color: #a3263c; }
 .import-tabs { overflow-x: auto; scrollbar-width: none; }
 .import-tab { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+
+.ext-help { flex: 1 1 100%; display: grid; gap: 10px; }
+.ext-help .import-steps { margin: 0; }
+.ext-help .ghost-button { display: inline-flex; margin-right: 6px; text-decoration: none; padding: 8px 12px; font-weight: 800; }
+#single-note .ext-help { padding: 12px; border-radius: 14px; background: var(--surface-2); }

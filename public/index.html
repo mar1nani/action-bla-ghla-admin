@@ -1558,15 +1558,12 @@
             </div>
             <div id="import-sources">
               <div class="import-tabs" role="tablist">
-                <button type="button" class="import-tab is-active" data-import-tab="url">🔗 Lien</button>
+                <button type="button" class="import-tab is-active" data-import-tab="url">🔗 Plusieurs articles</button>
                 <button type="button" class="import-tab" data-import-tab="single">➕ 1 article</button>
-                <button type="button" class="import-tab" data-import-tab="pdf">📄 PDF</button>
-                <button type="button" class="import-tab" data-import-tab="html">📋 Code</button>
-                <button type="button" class="import-tab" data-import-tab="mark">⚡ 1 clic</button>
               </div>
               <div class="import-pane" data-import-pane="url">
                 <label class="field">
-                  <span>Adresse de la page (catégorie, liste ou fiche produit)</span>
+                  <span>Adresse d'une page de catégorie ou de liste</span>
                   <input id="import-url" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/c/cuisine/" autocomplete="off" />
                 </label>
                 <label class="field field-compact-sm">
@@ -1574,11 +1571,11 @@
                   <input id="import-pages" type="number" min="1" max="20" step="1" value="1" inputmode="numeric" />
                 </label>
                 <button id="import-url-go" class="primary-button" type="button">Analyser la page</button>
-                <p class="import-hint">Une page de catégorie contient en général une vingtaine d'articles. Les photos, titres et prix en euros sont récupérés automatiquement.</p>
+                <p class="import-hint">Colle le lien d'une catégorie : tous les articles de la page arrivent avec photo, titre et prix en euros (environ 24 par page).</p>
               </div>
               <div class="import-pane" data-import-pane="single" hidden>
                 <label class="field">
-                  <span>Lien de l'article <em>(facultatif)</em></span>
+                  <span>Lien de l'article</span>
                   <span class="cat-inline">
                     <input id="single-url" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/p/…" autocomplete="off" />
                     <button id="single-fill" class="ghost-button" type="button">Remplir</button>
@@ -1610,42 +1607,7 @@
                 </label>
                 <button id="single-add" class="primary-button" type="button">Ajouter au catalogue</button>
               </div>
-              <div class="import-pane" data-import-pane="pdf" hidden>
-                <label class="import-drop" for="import-pdf-file">
-                  <strong>Choisis un catalogue PDF</strong>
-                  <span>Les photos, titres et prix sont détectés page par page — tout se passe dans ton navigateur.</span>
-                  <input id="import-pdf-file" type="file" accept="application/pdf,.pdf" />
-                </label>
-              </div>
-              <div class="import-pane" data-import-pane="mark" hidden>
-                <p class="import-hint"><strong>Pour les sites qui bloquent la lecture automatique (comme Action).</strong> Le favori lit la page dans <em>ton</em> navigateur, puis envoie les articles ici.</p>
-                <ol class="import-steps">
-                  <li>Glisse ce bouton dans ta barre de favoris <small>(Chrome : Cmd/Ctrl + Maj + B pour l'afficher)</small> :
-                    <a id="import-bookmarklet" class="import-bookmarklet" href="#" draggable="true">⚡ Importer vers Action bla ghla</a>
-                  </li>
-                  <li>Ouvre une page de catégorie sur le site (ex. Action → Cuisine).</li>
-                  <li>Clique sur le favori, choisis le nombre de pages : cette fenêtre se rouvre avec les articles.</li>
-                </ol>
-                <p class="import-hint">Ordinateur uniquement. Sur téléphone, utilise le PDF ou « Code ».</p>
-              </div>
-              <div class="import-pane" data-import-pane="html" hidden>
-                <ol class="import-steps">
-                  <li><strong>Ordinateur :</strong> ouvre la page du site, puis <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>U</kbd> (Windows : <kbd>Ctrl</kbd>+<kbd>U</kbd>) pour voir son code.</li>
-                  <li><strong>Android (Chrome) :</strong> écris <code>view-source:</code> juste avant l'adresse de la page, puis valide.</li>
-                  <li>Sélectionne tout, copie, et colle ci-dessous. Pour plusieurs pages, colle-les <strong>à la suite</strong>, l'une après l'autre.</li>
-                </ol>
-                <label class="field">
-                  <span>Code de la page</span>
-                  <textarea id="import-html" rows="5" placeholder="Colle ici le code de la page (ou de plusieurs pages)…"></textarea>
-                </label>
-                <label class="field">
-                  <span>Adresse de la page <em>(facultatif, détectée automatiquement)</em></span>
-                  <input id="import-html-base" type="url" inputmode="url" placeholder="https://www.action.com/fr-fr/c/cuisine/" autocomplete="off" />
-                </label>
-                <button id="import-html-go" class="primary-button" type="button">Analyser le code</button>
-                <p class="import-hint">iPhone : Safari ne montre pas le code des pages, utilise plutôt le <strong>PDF</strong> ou l'ordinateur.</p>
-              </div>
-            </div>
+                          </div>
             <div id="import-status" class="import-status" hidden></div>
             <div id="import-review" class="import-review" hidden></div>
           </article>

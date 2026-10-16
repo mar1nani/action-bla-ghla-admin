@@ -14,7 +14,7 @@ export const CATEGORIES = [
   { name: "Bricolage", icon: "🔧", words: "perceuse tournevis outil marteau vis ampoule rallonge cable pile ruban cadenas bricolage cle scie visseuse" },
   { name: "Électro & high-tech", icon: "🔌", words: "ecouteur chargeur enceinte lampe ventilateur chauffage radio telephone usb batterie montre-connectee" },
   { name: "Alimentation", icon: "🥜", words: "noix snack chocolat biscuit boisson cafe the bonbon sauce pates epice aliment alimentation conserve jus sirop confiture miel cereale bonbons gateau chips amande cajou pecan raisin sucre farine huile sel riz" },
-  { name: "Mode & accessoires", icon: "👜", words: "sac bijou montre lunette chaussette bonnet echarpe gant ceinture parapluie" },
+  { name: "Mode & accessoires", icon: "👜", words: "sac bijou montre lunette chaussette bonnet echarpe gant ceinture parapluie collant collants legging pull veste vetement pantalon gilet robe jupe pyjama" },
 ];
 
 export const DEFAULT_CATEGORY = "Autres";
