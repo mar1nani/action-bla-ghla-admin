@@ -148,8 +148,11 @@ Limite Vercel : corps de requête 4,5 Mo (les images sont déjà compressées c�
   ou d'une page d'articles (site, catalogue, prospectus), envoie-la (choisir, glisser ou **Ctrl+V**) : l'IA (Claude) lit le **titre**,
   découpe la **photo**, choisit la **catégorie** (et le **prix en €** s'il est visible). Tu vérifies, puis les articles arrivent en brouillon.
   Ensuite : **Chiffrer en DH** (coefficient × taux EUR→MAD, arrondi), sélection multiple, **Publier**.
-  - Variables d'environnement : `ANTHROPIC_API_KEY` (obligatoire pour l'IA), `CLAUDE_VISION_MODEL` (facultatif, défaut `claude-opus-5-5` ;
-    `claude-haiku-5-5` coûte environ 40 fois moins, au prix d'une détection un peu moins fine).
+  - **IA gratuite (recommandé)** : `GEMINI_API_KEY` (clé gratuite, sans carte bancaire, sur https://aistudio.google.com/apikey). Modèle par défaut :
+    alias `gemini-flash-latest` (repli automatique sur `gemini-2.5-flash` puis `gemini-2.0-flash`) ; `GEMINI_MODEL` pour en imposer un autre.
+    L'offre gratuite a des quotas par minute et par jour, et Google peut utiliser les images envoyées pour améliorer ses produits
+    (ne pas envoyer de données confidentielles).
+  - **Option payante** : `ANTHROPIC_API_KEY` (Claude, `CLAUDE_VISION_MODEL`, défaut `claude-opus-5-5`) — utilisée seulement si `GEMINI_API_KEY` est absente.
   - Sans clé, la capture est ajoutée telle quelle et il suffit de saisir le titre à la main.
 - **Public** : `/boutique` — catalogue haut de gamme par catégories, recherche, fiche article, bouton « Commander sur WhatsApp »
   (numéro réglable dans « Réglages de la vitrine »). API publique : `GET /api/public/showcase`.
