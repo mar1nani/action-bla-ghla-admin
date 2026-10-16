@@ -24,6 +24,7 @@ import {
   updateStore,
 } from "./lib/store.js";
 import { registerCatalogAdminRoutes, registerPublicCatalogRoutes } from "./lib/catalog.js";
+import { visionProvider } from "./lib/vision.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
@@ -1626,6 +1627,7 @@ app.get("/api/health", (_request, response) => {
     status: "ok",
     app: "action-bla-ghla-admin",
     stack: "node-express-static",
+    ai: visionProvider(),
     storage: getStoreStatus(),
     timestamp: new Date().toISOString(),
   });
