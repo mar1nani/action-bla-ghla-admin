@@ -820,6 +820,10 @@
                 <h3>Commandes fournisseur</h3>
               </div>
               <div class="section-head-inline-actions">
+                <button id="receipt-import-button" class="ghost-button section-action-button" type="button">
+                  Importer un ticket (PDF)
+                </button>
+                <input id="receipt-file" type="file" accept="application/pdf,.pdf" hidden />
                 <button
                   id="purchases-create-shipment-button"
                   class="primary-button section-action-button"
@@ -1520,6 +1524,20 @@
           </article>
         </div>
 
+        <div id="receipt-modal" class="modal-shell" hidden>
+          <div class="modal-backdrop" data-close-modal="receipt-modal"></div>
+          <article class="panel modal-panel modal-panel-wide receipt-panel">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">Ticket de caisse</p>
+                <h3 id="receipt-title">Importer un ticket</h3>
+              </div>
+              <button class="modal-close" type="button" data-close-modal="receipt-modal" aria-label="Fermer la fenêtre">×</button>
+            </div>
+            <div id="receipt-body"></div>
+          </article>
+        </div>
+
         <div id="photo-product-modal" class="modal-shell" hidden>
           <div class="modal-backdrop" data-close-modal="photo-product-modal"></div>
           <article class="panel modal-panel">
@@ -1689,5 +1707,6 @@
     <script type="module" src="/pwa.js"></script>
     <script type="module" src="/catalog-admin.js"></script>
     <script type="module" src="/gallery.js"></script>
+    <script type="module" src="/receipt.js"></script>
   </body>
 </html>

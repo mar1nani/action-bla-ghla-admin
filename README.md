@@ -135,6 +135,16 @@ Le service worker ne met jamais `/api` en cache. Pour forcer une mise à jour du
 - Connexion : le cookie de session expire à la fermeture du navigateur (12 h max) et le site redemande le mot de passe à chaque nouvelle ouverture
   (nouvel onglet, application relancée).
 
+## Import d'un ticket de caisse Action (PDF)
+
+Page **Achats → Importer un ticket (PDF)**. Le PDF est lu directement dans son texte (aucune IA, aucun quota, `unpdf`) :
+titre, quantité et prix de chaque ligne (le prix du ticket est le total de la ligne : le prix unitaire est calculé), lignes identiques regroupées,
+total contrôlé avec celui du ticket. Les produits déjà au catalogue sont reconnus (référence Action `sourceRef`, sinon nom exact) ;
+les nouveaux reçoivent une catégorie devinée, la boutique « Action », et une popup demande poids + prix de vente MAD.
+À la validation : création des nouveaux produits, de l'achat fournisseur « Action » (stock France) et rattachement du PDF
+(`/api/receipts/<id>`, réservé aux comptes connectés). Un ticket déjà importé est refusé (`receiptTransaction`).
+API : `POST /api/purchases/receipt/preview` puis `POST /api/purchases/receipt/commit`.
+
 ## Déploiement sur Vercel
 
 L'app Express est exposée comme fonction Vercel (`api/index.js` + `vercel.json`) : pas de mise en veille de 50 s comme sur l'offre gratuite de Render.

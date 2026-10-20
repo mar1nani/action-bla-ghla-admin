@@ -610,6 +610,10 @@ function renderProductThumb({
 }
 
 function renderPurchaseInvoiceThumb(purchase) {
+  if (purchase.invoiceFileUrl) {
+    return `<a class="invoice-pdf-link" href="${escapeHtml(purchase.invoiceFileUrl)}" target="_blank" rel="noopener">PDF</a>`;
+  }
+
   if (!purchase.invoiceImageUrl) {
     return `<span class="table-media-empty">-</span>`;
   }

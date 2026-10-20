@@ -18,6 +18,7 @@ import {
 import { renderInvoiceHtml } from "./lib/invoice-template.js";
 import {
   createId,
+  deleteImages,
   getStoreStatus,
   isDatabaseStoreEnabled,
   readStore,
@@ -28,6 +29,7 @@ import {
 import { registerCatalogAdminRoutes, registerPublicCatalogRoutes } from "./lib/catalog.js";
 import { visionProvider } from "./lib/vision.js";
 import { cleanShop, ensureCategory, registerGalleryRoutes } from "./lib/gallery.js";
+import { registerReceiptRoutes } from "./lib/receipt.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
@@ -1751,6 +1753,16 @@ registerGalleryRoutes(app, {
   assertUniqueProductName,
 });
 
+registerReceiptRoutes(app, {
+  asyncRoute,
+  readStore,
+  updateStore,
+  buildPurchaseRecord,
+  buildPublicState,
+  assertUniqueProductName,
+  assertNonNegativeStocks,
+});
+
 app.get(
   "/api/users",
   asyncRoute(async (request, response) => {
@@ -2371,6 +2383,14 @@ app.put(
       const linkedShipment = linkedShipmentForPurchase(store, request.params.purchaseId);
       nextPurchase.invoiceImageUrl = existingPurchase.invoiceImageUrl || "";
 
+      if (existingPurchase.invoiceFileUrl) {
+        nextPurchase.invoiceFileUrl = existingPurchase.invoiceFileUrl;
+      }
+
+      if (existingPurchase.receiptTransaction) {
+        nextPurchase.receiptTransaction = existingPurchase.receiptTransaction;
+      }
+
       if (
         linkedShipment &&
         JSON.stringify(normalizePurchaseItemsForComparison(nextPurchase.items)) !==
@@ -2414,6 +2434,7 @@ app.delete(
 
       const [purchase] = store.purchases.splice(purchaseIndex, 1);
       await removeProductImage(purchase?.invoiceImageUrl);
+      await deleteImages([String(purchase?.invoiceFileUrl ?? "").replace("/api/receipts/", "")]);
       assertNonNegativeStocks(store);
       return store;
     });

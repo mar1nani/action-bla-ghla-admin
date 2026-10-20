@@ -1828,3 +1828,47 @@ body.gl-sheet-open .install-banner { display: none; }
   .bulk-bar .bulk-btn.gl-compact { width: 46px; padding: 0; justify-content: center; }
   .bulk-bar .bulk-btn.gl-compact span { display: none; }
 }
+
+/* ==========================================================================
+   Import d'un ticket de caisse (receipt.js)
+   ========================================================================== */
+.invoice-pdf-link { display: inline-grid; place-items: center; min-width: 44px; padding: 6px 10px; border-radius: 10px; background: #fdebee; color: #c0213c; font-size: 0.78rem; font-weight: 800; text-decoration: none; }
+.receipt-panel { max-height: 94vh; overflow-y: auto; }
+.rc-banner { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-size: 0.9rem; font-weight: 700; }
+.rc-banner--ok { background: #e4f7ec; color: #136c3a; }
+.rc-banner--warn { background: #fff4d6; color: #7a5a00; }
+.rc-banner--bad { background: #fdebee; color: #a11a33; }
+.rc-meta { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--ink-soft); font-size: 0.86rem; }
+.rc-meta label { display: grid; gap: 4px; font-weight: 800; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.rc-meta input { padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-2); font: inherit; color: var(--ink); }
+.rc-help { margin: 0 0 12px; color: var(--ink-soft); font-size: 0.88rem; line-height: 1.45; }
+.rc-lines { display: grid; gap: 10px; }
+.rc-line { display: grid; gap: 10px; padding: 12px; border-radius: 18px; border: 2px solid var(--hairline); background: #fff; }
+.rc-line.is-new { border-color: #cfe9e8; }
+.rc-line.is-off { opacity: 0.45; }
+.rc-top { display: flex; align-items: flex-start; gap: 10px; }
+.rc-include input { width: 22px; height: 22px; margin-top: 8px; accent-color: var(--brand-blue); }
+.rc-main { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.rc-name { color: var(--ink); font-size: 0.98rem; }
+.rc-title { width: 100%; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-2); color: var(--ink); font: inherit; font-weight: 700; }
+.rc-ref { color: var(--ink-soft); font-size: 0.74rem; }
+.rc-chip { justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 800; }
+.rc-chip--known { background: #e3f6f5; color: var(--brand-blue); }
+.rc-chip--new { background: #fff0cc; color: #8a6100; }
+.rc-nums { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.rc-nums label, .rc-new label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.rc-nums input, .rc-new input, .rc-new select { width: 100%; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-2); color: var(--ink); font: inherit; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.rc-nums label { flex: 1 1 110px; }
+.rc-total { margin-left: auto; padding-bottom: 10px; color: var(--ink-soft); font-size: 0.86rem; }
+.rc-total b { color: var(--ink); font-family: "Sora", sans-serif; }
+.rc-new { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--hairline); }
+.rc-new .needs-pick { border-color: var(--brand-coral); background: #fff3f1; }
+.rc-hint { grid-column: 1 / -1; margin: 0; color: var(--ink-soft); font-size: 0.82rem; }
+.rc-foot { position: sticky; bottom: -1px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px 0 2px; background: linear-gradient(to top, #fff 80%, transparent); }
+.rc-sum { display: grid; gap: 2px; }
+.rc-sum strong { color: var(--ink); font-family: "Sora", sans-serif; }
+.rc-sum span { color: var(--ink-soft); font-size: 0.82rem; }
+@media (max-width: 520px) {
+  .rc-new { grid-template-columns: 1fr; }
+  .rc-foot .primary-button { width: 100%; }
+}

@@ -2,7 +2,7 @@
 
 export const CATEGORIES = [
   { name: "Semaine d'Action", icon: "⚡", words: "" },
-  { name: "Cuisine", icon: "🍳", words: "poele casserole assiette verre tasse mug couvert couteau cuisine plat saladier bol cocotte friteuse mixeur bouilloire grille-pain bocal planche decouper passoire ustensile theiere cafetiere carafe torchon tablier moule cuillere fourchette gourde thermos faitout wok vaisselle service poelon egouttoir epluche rape ouvre-boite airfryer micro-ondes" },
+  { name: "Cuisine", icon: "🍳", words: "poele casserole assiette verre tasse mug couvert couteau cuisine plat saladier bol cocotte friteuse mixeur bouilloire grille-pain bocal planche decouper passoire ustensile theiere cafetiere carafe torchon tablier moule cuillere fourchette gourde thermos faitout wok vaisselle service poelon egouttoir epluche rape ouvre-boite airfryer micro-ondes cucina cuisson" },
   { name: "Meubles", icon: "🛋️", words: "meuble table chaise tabouret etagere commode armoire bureau canape fauteuil banc bibliotheque buffet coiffeuse porte-manteau desserte console lit sommier tiroir caisson pouf" },
   { name: "Déco", icon: "🕯️", words: "decoration deco bougie cadre vase miroir coussin plaid tableau guirlande lanterne photophore statue horloge pendule fleur plante artificielle tapis rideau couronne figurine sculpture bibelot mural parfum diffuseur" },
   { name: "Salle de bain", icon: "🛁", words: "bain douche savon distributeur brosse dents wc toilette peignoir gant toilette tapis-de-bain rideau-de-douche serviette-de-bain serviette-de-toilette serviette-eponge shampoing gel-douche porte-serviette" },
@@ -10,12 +10,12 @@ export const CATEGORIES = [
   { name: "Rangement", icon: "🧺", words: "rangement boite panier organisateur cintre crochet bac coffre malle range-chaussures etagere-de" },
   { name: "Textile & linge", icon: "🛏️", words: "drap housse couette oreiller linge parure taie nappe serviette-de-table couverture literie matelas" },
   { name: "Jardin & extérieur", icon: "🌿", words: "jardin plante pot arrosoir barbecue parasol terrasse exterieur graines terreau jardiniere camping pelle sécateur tondeuse" },
-  { name: "Enfants & jouets", icon: "🧸", words: "jouet jeu puzzle peluche enfant bebe poupee lego cartable biberon" },
+  { name: "Enfants & jouets", icon: "🧸", words: "jouet jeu puzzle peluche enfant bebe poupee lego cartable biberon camion voiture truck friction trottinette" },
   { name: "Papeterie & loisirs", icon: "✏️", words: "stylo cahier papier loisir creatif peinture colle agrafeuse classeur feutre crayon carnet scrapbooking fourniture" },
   { name: "Bricolage", icon: "🔧", words: "perceuse tournevis outil marteau vis ampoule rallonge cable pile ruban cadenas bricolage cle scie visseuse" },
-  { name: "Électro & high-tech", icon: "🔌", words: "ecouteur chargeur enceinte lampe ventilateur chauffage radio telephone usb batterie montre-connectee" },
+  { name: "Électro & high-tech", icon: "🔌", words: "ecouteur chargeur enceinte lampe ventilateur chauffage radio telephone usb batterie montre-connectee lisser lisseur repasser seche-cheveux rasoir tondeuse-cheveux" },
   { name: "Alimentation", icon: "🥜", words: "noix snack chocolat biscuit boisson cafe the bonbon sauce pates epice aliment alimentation conserve jus sirop confiture miel cereale bonbons gateau chips amande cajou pecan raisin sucre farine huile sel riz" },
-  { name: "Mode & accessoires", icon: "👜", words: "sac bijou montre lunette chaussette bonnet echarpe gant ceinture parapluie collant collants legging pull veste vetement pantalon gilet robe jupe pyjama" },
+  { name: "Mode & accessoires", icon: "👜", words: "sac bijou montre lunette chaussette bonnet echarpe gant ceinture parapluie collant collants legging pull veste vetement pantalon gilet robe jupe pyjama chausson pantoufle chaussure basket" },
 ];
 
 export const DEFAULT_CATEGORY = "Autres";

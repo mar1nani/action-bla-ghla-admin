@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/index.js": {
-      "includeFiles": "{public/**,node_modules/pdfkit/js/data/**}",
+      "includeFiles": "{public/**,node_modules/pdfkit/js/data/**,node_modules/unpdf/dist/**}",
       "maxDuration": 60
     }
   },
