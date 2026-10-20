@@ -48,7 +48,6 @@ const state = {
   tables: {
     products: { items: [], pagination: null },
     wishlist: { items: [], pagination: null },
-    gallery: { items: [], pagination: null },
     available: { items: [], pagination: null },
     purchases: { items: [], pagination: null },
     shipments: { items: [], pagination: null },
@@ -60,6 +59,8 @@ const state = {
 const DEFAULT_TABLE_FILTERS = {
   products: {
     search: "",
+    shop: "",
+    category: "",
   },
   purchases: {
     search: "",
@@ -104,10 +105,9 @@ let activePurchaseSourceWishlistIds = [];
 const selectedProductIdsForPurchase = new Set();
 const selectedPurchaseIdsForShipment = new Set();
 const expandedPurchaseIds = new Set();
-const bulkSelection = { gallery: new Set(), wishlist: new Set() };
-const BULK_ENDPOINTS = { gallery: "/api/gallery-items/bulk", wishlist: "/api/wishlist/bulk" };
+const bulkSelection = { wishlist: new Set() };
+const BULK_ENDPOINTS = { wishlist: "/api/wishlist/bulk" };
 const BULK_NOUNS = {
-  gallery: { one: "photo", many: "photos" },
   wishlist: { one: "produit", many: "produits" },
 };
 const tableFilters = structuredClone(DEFAULT_TABLE_FILTERS);
@@ -207,10 +207,6 @@ const refs = {
   productsPagination: document.querySelector("#products-pagination"),
   wishlistTable: document.querySelector("#wishlist-table"),
   wishlistPagination: document.querySelector("#wishlist-pagination"),
-  galleryTable: document.querySelector("#gallery-table"),
-  galleryPagination: document.querySelector("#gallery-pagination"),
-  galleryUploadInput: document.querySelector("#gallery-upload-input"),
-  galleryUploadButton: document.querySelector("#gallery-upload-button"),
   availableGrid: document.querySelector("#available-grid"),
   availablePagination: document.querySelector("#available-pagination"),
   productsCreatePurchaseButton: document.querySelector("#products-create-purchase-button"),
@@ -303,7 +299,6 @@ const MODAL_TO_FORM_TYPE = {
 const TABLE_ENDPOINTS = {
   products: "/api/products",
   wishlist: "/api/wishlist",
-  gallery: "/api/gallery-items",
   available: "/api/available-products",
   purchases: "/api/purchases",
   shipments: "/api/shipments",
@@ -1112,6 +1107,28 @@ async function loadSession() {
 
 // Hébergement gratuit en veille : le serveur peut mettre jusqu'à ~1 min à répondre. On réessaie tout seul
 // (au lieu de laisser un écran vide) jusqu'à ce que l'écran de connexion ou les données s'affichent.
+// À chaque ouverture du site (nouvel onglet ou fenêtre, application installée relancée), on redemande le mot de passe :
+// la connexion n'est mémorisée que pour la durée de l'onglet (sessionStorage), jamais entre deux ouvertures.
+async function enforceFreshLogin() {
+  try {
+    if (window.sessionStorage.getItem("abg-signed-in") === "1") {
+      return;
+    }
+  } catch {
+    return;
+  }
+
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+}
+
+function rememberSignedIn() {
+  try {
+    window.sessionStorage.setItem("abg-signed-in", "1");
+  } catch {
+    /* stockage indisponible : la connexion reste valable pour la session du navigateur */
+  }
+}
+
 async function loadSessionWithRetry(maxAttempts = 15, delayMs = 4000) {
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -1175,6 +1192,8 @@ function getSelectedPurchasesForShipment() {
 }
 
 function updateProductsCreatePurchaseButton() {
+  updateProductsClassifyBar();
+
   if (!refs.productsCreatePurchaseButton && !refs.productsCreateOrderButton) {
     return;
   }
@@ -1265,7 +1284,7 @@ function resetAllTableFilters() {
 function buildTableQuery(tableKey, page = 1) {
   const params = new URLSearchParams();
 
-  if (tableKey !== "wishlist" && tableKey !== "gallery") {
+  if (tableKey !== "wishlist") {
     params.set("page", String(page));
     params.set("pageSize", String(TABLE_PAGE_SIZES[tableKey] || 10));
   }
@@ -1367,6 +1386,7 @@ function resetProductForm() {
   setProductFormMode();
   refs.productForm.elements.minStockAlert.value = state.settings.lowStockDefault || 2;
   refs.productInitialStockQty.value = "0";
+  toggleNewCategoryField();
   resetProductImageSelection();
 }
 
@@ -1386,6 +1406,10 @@ function fillProductForm(product) {
     product.defaultPurchasePriceEur ?? "";
   refs.productForm.elements.defaultSalePriceMad.value = product.defaultSalePriceMad ?? "";
   refs.productForm.elements.notes.value = product.notes || "";
+  ensureCategoryOption(refs.productForm.elements.category, product.category);
+  refs.productForm.elements.category.value = product.category || "";
+  refs.productForm.elements.shop.value = product.shop || "";
+  toggleNewCategoryField();
 
   setProductFormMode(product);
   productImageVersion += 1;
@@ -1523,6 +1547,157 @@ async function apiRequest(url, options = {}) {
 async function loadAppState() {
   const appState = await apiRequest("/api/app-state");
   Object.assign(state, appState);
+}
+
+// Catégories (par défaut + celles ajoutées) et boutiques (Normal / Action), communes aux photos, produits et catalogue.
+const classification = { categories: [], shops: ["Normal", "Action"] };
+const SHOP_ICONS = { Action: "🅰️", Normal: "🏬" };
+const NEW_CATEGORY = "__new__";
+
+async function loadClassification() {
+  try {
+    const data = await apiRequest("/api/categories");
+    classification.categories = data.categories;
+    classification.shops = data.shops;
+  } catch {
+    /* les listes restent sur leurs valeurs précédentes */
+  }
+
+  fillClassificationSelects();
+}
+
+function renderClassChips(entry) {
+  const chips = [
+    entry.shop
+      ? `<span class="class-chip class-chip--${entry.shop === "Action" ? "action" : "normal"}">${escapeHtml(entry.shop)}</span>`
+      : "",
+    entry.category ? `<span class="class-chip">${escapeHtml(entry.category)}</span>` : "",
+  ].join("");
+
+  return chips ? `<span class="class-chips">${chips}</span>` : "";
+}
+
+function fillClassificationSelects() {
+  const shopOptions = classification.shops.map((shop) => [shop, `${SHOP_ICONS[shop] || ""} ${shop}`.trim()]);
+  const categoryOptions = classification.categories.map((entry) => [entry.name, `${entry.icon} ${entry.name}`]);
+  const layouts = {
+    "shop-filter": [["", "Toutes"], ...shopOptions, ["none", "Non classées"]],
+    "category-filter": [["", "Toutes"], ...categoryOptions, ["none", "Sans catégorie"]],
+    "shop-form": [["", "Aucune"], ...shopOptions],
+    "category-form": [["", "Sans catégorie"], ...categoryOptions, [NEW_CATEGORY, "＋ Nouvelle catégorie…"]],
+    "shop-bulk": [["__pick__", "Classer… (boutique)"], ...shopOptions, ["", "Retirer la boutique"]],
+    "category-bulk": [["__pick__", "Classer… (catégorie)"], ...categoryOptions, [NEW_CATEGORY, "＋ Nouvelle catégorie…"], ["", "Retirer la catégorie"]],
+  };
+
+  document.querySelectorAll("[data-class-select]").forEach((select) => {
+    const previous = select.value;
+    const layout = layouts[select.dataset.classSelect];
+
+    if (!layout) {
+      return;
+    }
+
+    select.innerHTML = layout
+      .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+      .join("");
+
+    if ([...select.options].some((option) => option.value === previous)) {
+      select.value = previous;
+    }
+  });
+
+  syncTableFilterForms();
+}
+
+function ensureCategoryOption(select, value) {
+  if (value && ![...select.options].some((option) => option.value === value)) {
+    const option = new Option(`🏷️ ${value}`, value);
+    select.insertBefore(option, select.querySelector(`[value="${NEW_CATEGORY}"]`));
+  }
+}
+
+function toggleNewCategoryField() {
+  const field = document.querySelector("#product-newcat-field");
+  const isNew = refs.productForm.elements.category.value === NEW_CATEGORY;
+
+  if (field) {
+    field.hidden = !isNew;
+  }
+
+  if (isNew) {
+    refs.productForm.elements.newCategory.focus();
+  }
+}
+
+function updateProductsClassifyBar() {
+  const bar = document.querySelector("#products-classify");
+
+  if (!bar) {
+    return;
+  }
+
+  const count = selectedProductIdsForPurchase.size;
+  bar.hidden = count === 0;
+  document.querySelector("#products-classify-count").textContent =
+    count === 1 ? "1 produit sélectionné" : `${formatNumber(count, 0)} produits sélectionnés`;
+}
+
+async function classifySelectedProducts(action, value) {
+  const ids = getSelectedProductsForPurchase().map((product) => product.id);
+
+  if (!ids.length) {
+    return;
+  }
+
+  let category = value;
+
+  if (action === "category" && value === NEW_CATEGORY) {
+    category = (window.prompt("Nom de la nouvelle catégorie :") || "").trim();
+
+    if (!category) {
+      return;
+    }
+  }
+
+  try {
+    const result = await apiRequest("/api/products/bulk", {
+      method: "POST",
+      body: action === "category" ? { ids, action, category } : { ids, action, shop: value },
+    });
+    Object.assign(state, result.appState);
+    selectedProductIdsForPurchase.clear();
+    await Promise.all([loadClassification(), refreshTableData(["products", "wishlist", "available"])]);
+    showFlash(result.message);
+  } catch (error) {
+    showFlash(error.message, "error");
+  }
+}
+
+function bindClassification() {
+  document.addEventListener("change", (event) => {
+    const select = event.target.closest?.("[data-class-select]");
+
+    if (!select) {
+      return;
+    }
+
+    const kind = select.dataset.classSelect;
+
+    if (kind === "category-form") {
+      toggleNewCategoryField();
+    } else if (kind === "shop-bulk" || kind === "category-bulk") {
+      const value = select.value;
+      const action = kind === "shop-bulk" ? "shop" : "category";
+
+      select.value = "__pick__";
+
+      if (value !== "__pick__") {
+        void classifySelectedProducts(action, value);
+      }
+    } else if (select.hasAttribute("data-auto-submit")) {
+      select.form?.requestSubmit();
+    }
+  });
 }
 
 async function loadTablePage(tableKey, page = 1, options = {}) {
@@ -1925,6 +2100,7 @@ function renderProductsTable() {
                         "MAD",
                       )}`,
                     )}</small>
+                    ${renderClassChips(product)}
                   </div>
                 </td>
                 <td>${escapeHtml(formatWeight(product.weightKg))}</td>
@@ -2078,6 +2254,7 @@ function renderWishlistCards(items = [], variant = "pending") {
               </div>
               <div class="wishlist-card-copy">
                 <h4>${escapeHtml(item.name)}</h4>
+                ${renderClassChips(item)}
                 <p>
                   Ajouté par ${escapeHtml(item.createdByName || "Équipe")}
                   <span>· ${escapeHtml(formatDate(item.createdAt))}</span>
@@ -2337,11 +2514,11 @@ function renderBulkBar() {
 
   const page = document.body.dataset.page;
 
-  if (page === "showcase") {
+  if (page === "showcase" || page === "gallery") {
     return;
   }
 
-  const scope = page === "gallery" ? "gallery" : page === "wishlist" ? "wishlist" : "";
+  const scope = page === "wishlist" ? "wishlist" : "";
   const selectedIds = scope ? [...bulkSelection[scope]] : [];
 
   if (!scope || !selectedIds.length) {
@@ -2375,7 +2552,7 @@ function renderBulkBar() {
 
 async function runBulkAction(action) {
   const page = document.body.dataset.page;
-  const scope = page === "gallery" ? "gallery" : page === "wishlist" ? "wishlist" : "";
+  const scope = page === "wishlist" ? "wishlist" : "";
   const ids = scope ? [...bulkSelection[scope]] : [];
 
   if (!scope || !ids.length) {
@@ -2387,10 +2564,7 @@ async function runBulkAction(action) {
   if (action === "delete") {
     const confirmed = await openConfirmDialog({
       title: `Supprimer ${ids.length} ${noun} ?`,
-      message:
-        scope === "gallery"
-          ? "Les photos sélectionnées seront supprimées définitivement."
-          : "Les produits sélectionnés seront retirés de la wishlist.",
+      message: "Les produits sélectionnés seront retirés de la wishlist.",
       confirmLabel: `Supprimer (${ids.length})`,
     });
 
@@ -2410,241 +2584,6 @@ async function runBulkAction(action) {
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
-  }
-}
-
-function sumGallery(items) {
-  return items.reduce(
-    (total, item) => total + Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0),
-    0,
-  );
-}
-
-function renderGallerySummary(pending, bought) {
-  return `
-    <div class="g-summary">
-      <div class="g-stat">
-        <span>À acheter</span>
-        <strong>${escapeHtml(formatNumber(pending.length, 0))}</strong>
-      </div>
-      <div class="g-stat g-stat--money">
-        <span>Budget estimé</span>
-        <strong data-gallery-total-pending>${escapeHtml(formatCurrency(sumGallery(pending), "EUR"))}</strong>
-      </div>
-      <div class="g-stat g-stat--done">
-        <span>Acheté</span>
-        <strong>${escapeHtml(formatNumber(bought.length, 0))}</strong>
-      </div>
-    </div>
-  `;
-}
-
-function renderGalleryCard(item) {
-  const selected = bulkSelection.gallery.has(item.id);
-  const lineTotal = Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0);
-  const id = escapeHtml(item.id);
-
-  return `
-    <article
-      class="g-card${item.purchased ? " is-bought" : ""}${selected ? " is-selected" : ""}"
-      data-bulk-card="gallery:${id}"
-    >
-      <div class="g-photo">
-        ${renderProductThumb({
-          imageUrl: item.imageUrl,
-          label: `Photo ajoutée le ${formatDate(item.createdAt)}`,
-          className: "g-photo-button",
-          fallback: "WG",
-          button: true,
-        })}
-        ${renderSelectCheck("gallery", item.id, selected)}
-        ${item.purchased ? `<span class="g-badge">${renderIcon("check")}Acheté</span>` : ""}
-        <span class="g-line-total" data-gallery-line-total="${id}" ${lineTotal > 0 ? "" : "hidden"}>
-          ${escapeHtml(formatCurrency(lineTotal, "EUR"))}
-        </span>
-      </div>
-      <div class="g-body">
-        <div class="g-fields">
-          <div class="g-field">
-            <span>Qté</span>
-            <div class="g-stepper">
-              <button type="button" data-gallery-step="${id}:-1" aria-label="Moins">${renderIcon("minus")}</button>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                inputmode="numeric"
-                value="${escapeHtml(formatNumber(item.desiredQty ?? 1, 0))}"
-                data-gallery-qty-input="${id}"
-                aria-label="Quantité à acheter"
-              />
-              <button type="button" data-gallery-step="${id}:1" aria-label="Plus">${renderIcon("plus")}</button>
-            </div>
-          </div>
-          <div class="g-field">
-            <span>Prix magasin</span>
-            <label class="g-price">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                inputmode="decimal"
-                value="${escapeHtml(String(item.foundPriceEur ?? 0))}"
-                data-gallery-price-input="${id}"
-                aria-label="Prix magasin en euro"
-              />
-              <em>€</em>
-            </label>
-          </div>
-        </div>
-        <textarea
-          class="g-note"
-          rows="1"
-          placeholder="Ajouter une note…"
-          data-gallery-note-input="${id}"
-          aria-label="Note"
-        >${escapeHtml(item.note ?? "")}</textarea>
-        <div class="g-foot">
-          <small>${escapeHtml(item.createdByName || "Équipe")} · ${escapeHtml(formatDate(item.createdAt))}</small>
-          <div class="g-actions">
-            <button
-              class="g-icon-btn ${item.purchased ? "g-icon-btn--undo" : "g-icon-btn--buy"}"
-              type="button"
-              data-gallery-toggle-purchased="${id}"
-              title="${item.purchased ? "Remettre à acheter" : "Marquer comme acheté"}"
-              aria-label="${item.purchased ? "Remettre à acheter" : "Marquer comme acheté"}"
-            >
-              ${renderIcon(item.purchased ? "undo" : "check")}
-            </button>
-            <button
-              class="g-icon-btn g-icon-btn--product"
-              type="button"
-              data-gallery-to-product="${id}"
-              title="Créer un produit à partir de cette photo"
-              aria-label="Créer un produit à partir de cette photo"
-            >
-              ${renderIcon("product")}
-            </button>
-            <button
-              class="g-icon-btn g-icon-btn--delete"
-              type="button"
-              data-gallery-delete="${id}"
-              aria-label="Supprimer cette photo"
-              title="Supprimer"
-            >
-              ${renderIcon("delete")}
-            </button>
-          </div>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderGalleryTable() {
-  if (!refs.galleryTable || !refs.galleryPagination) {
-    return;
-  }
-
-  const items = ensureTableState("gallery").items;
-  refs.galleryPagination.hidden = true;
-  refs.galleryPagination.innerHTML = "";
-  pruneBulkSelection("gallery");
-
-  const activeTab = refs.galleryTable.dataset.activeTab || "pending";
-  const pending = items.filter((item) => !item.purchased);
-  const bought = items.filter((item) => item.purchased);
-  const visibleItems = activeTab === "bought" ? bought : pending;
-  const visibleIds = visibleItems.map((item) => item.id);
-
-  refs.galleryTable.innerHTML = `
-    ${renderGallerySummary(pending, bought)}
-    <div class="g-toolbar">
-      <div class="g-tabs" role="tablist">
-        <button class="g-tab${activeTab === "pending" ? " is-active" : ""}" type="button" role="tab" data-gallery-tab="pending">
-          À acheter <b>${pending.length}</b>
-        </button>
-        <button class="g-tab${activeTab === "bought" ? " is-active" : ""}" type="button" role="tab" data-gallery-tab="bought">
-          Acheté <b>${bought.length}</b>
-        </button>
-      </div>
-      ${
-        visibleItems.length
-          ? `<button class="g-select-all" type="button" data-bulk-select-all="${escapeHtml(visibleIds.join(","))}" data-bulk-scope="gallery">Tout sélectionner</button>`
-          : ""
-      }
-    </div>
-    ${
-      visibleItems.length
-        ? `<div class="g-grid">${visibleItems.map(renderGalleryCard).join("")}</div>`
-        : `<div class="g-empty">
-            <span class="g-empty-icon">${renderIcon("photos")}</span>
-            <strong>${activeTab === "bought" ? "Rien d'acheté pour l'instant" : "Aucune photo à acheter"}</strong>
-            <p>${activeTab === "bought" ? "Les photos marquées « Acheté » apparaissent ici." : "Ajoute des photos de produits repérés en magasin."}</p>
-          </div>`
-    }
-  `;
-
-  syncBulkSelectionDom();
-}
-
-function updateGalleryDerived() {
-  const items = ensureTableState("gallery").items;
-  const pending = items.filter((item) => !item.purchased);
-  const total = document.querySelector("[data-gallery-total-pending]");
-
-  if (total) {
-    total.textContent = formatCurrency(sumGallery(pending), "EUR");
-  }
-
-  items.forEach((item) => {
-    const badge = document.querySelector(`[data-gallery-line-total="${item.id}"]`);
-
-    if (badge) {
-      const line = Number(item.desiredQty || 0) * Number(item.foundPriceEur || 0);
-      badge.textContent = formatCurrency(line, "EUR");
-      badge.hidden = line <= 0;
-    }
-  });
-}
-
-async function saveGalleryField(galleryItemId, patch) {
-  const item = getTableRecord("gallery", galleryItemId);
-
-  if (!item) {
-    return;
-  }
-
-  try {
-    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
-      method: "PATCH",
-      body: patch,
-    });
-    Object.assign(item, patch);
-    updateGalleryDerived();
-    showFlash("Enregistré.");
-    return result;
-  } catch (error) {
-    showFlash(error.message, "error");
-    await refreshTableData(["gallery"]);
-  }
-}
-
-function handleGalleryFieldChange(event) {
-  const qtyInput = event.target.closest("[data-gallery-qty-input]");
-  const priceInput = event.target.closest("[data-gallery-price-input]");
-  const noteInput = event.target.closest("[data-gallery-note-input]");
-
-  if (qtyInput) {
-    const value = Math.max(1, Math.round(Number(qtyInput.value) || 1));
-    qtyInput.value = String(value);
-    void saveGalleryField(qtyInput.dataset.galleryQtyInput, { desiredQty: value });
-  } else if (priceInput) {
-    const value = Math.max(0, Number(priceInput.value) || 0);
-    priceInput.value = String(value);
-    void saveGalleryField(priceInput.dataset.galleryPriceInput, { foundPriceEur: value });
-  } else if (noteInput) {
-    void saveGalleryField(noteInput.dataset.galleryNoteInput, { note: noteInput.value.slice(0, 500) });
   }
 }
 
@@ -3457,7 +3396,6 @@ function renderAll() {
   renderActivity();
   renderProductsTable();
   renderWishlistTable();
-  renderGalleryTable();
   renderAvailableProducts();
   renderPurchases();
   renderShipments();
@@ -4938,9 +4876,10 @@ function clearProtectedState() {
 }
 
 async function loadAuthenticatedApp() {
-  await Promise.all([loadAppState(), refreshHealth()]);
+  await Promise.all([loadAppState(), refreshHealth(), loadClassification()]);
   await ensurePageTableData({ force: true, render: false });
   renderAll();
+  document.dispatchEvent(new CustomEvent("abg:ready", { detail: { page: getCurrentPageKey() } }));
 }
 
 async function handleLoginSubmit(event) {
@@ -4957,6 +4896,7 @@ async function handleLoginSubmit(event) {
         password: form.elements.password.value,
       },
     });
+    rememberSignedIn();
     await loadSession();
     await loadAuthenticatedApp();
     showFlash("Connexion réussie.");
@@ -4982,6 +4922,7 @@ async function handleSetupSubmit(event) {
         password: form.elements.password.value,
       },
     });
+    rememberSignedIn();
     await loadSession();
     await loadAuthenticatedApp();
     showFlash("Compte créé.");
@@ -5020,6 +4961,12 @@ async function handlePersonnelSubmit(event) {
 
 async function handleLogout() {
   try {
+    window.sessionStorage.removeItem("abg-signed-in");
+  } catch {
+    /* ignoré */
+  }
+
+  try {
     await apiRequest("/api/auth/logout", {
       method: "POST",
     });
@@ -5047,8 +4994,20 @@ async function handleProductSubmit(event) {
     const productName = form.elements.name.value;
     const productId = activeProductEditId || form.elements.productId.value;
     const isEditing = Boolean(productId);
+    let productCategory = form.elements.category.value;
+
+    if (productCategory === NEW_CATEGORY) {
+      productCategory = form.elements.newCategory.value.trim();
+
+      if (!productCategory) {
+        throw new Error("Écris le nom de la nouvelle catégorie.");
+      }
+    }
+
     const payload = {
       name: productName,
+      category: productCategory,
+      shop: form.elements.shop.value,
       weightKg: convertGramsToKg(form.elements.weightKg.value),
       defaultPurchasePriceEur: Number(form.elements.defaultPurchasePriceEur.value),
       defaultSalePriceMad: Number(form.elements.defaultSalePriceMad.value),
@@ -5068,7 +5027,7 @@ async function handleProductSubmit(event) {
     });
     Object.assign(state, result.appState);
     closeModal("product-modal");
-    await refreshTableData(["products", "purchases", "wishlist", "available"]);
+    await Promise.all([loadClassification(), refreshTableData(["products", "purchases", "wishlist", "available"])]);
     showFlash(result.message);
   } catch (error) {
     setModalFormError("product", error.message);
@@ -5169,95 +5128,6 @@ async function handleWishlistQtyUpdate(wishlistId, desiredQty) {
     });
     Object.assign(state, result.appState);
     await refreshTableData(["wishlist"]);
-    showFlash(result.message);
-  } catch (error) {
-    showFlash(error.message, "error");
-  }
-}
-
-async function handleGalleryUpload(event) {
-  const files = [...(event.target.files ?? [])];
-
-  if (!files.length) {
-    return;
-  }
-
-  if (refs.galleryUploadButton) {
-    refs.galleryUploadButton.disabled = true;
-  }
-
-  try {
-    for (const [index, file] of files.entries()) {
-      if (refs.galleryUploadButton) {
-        refs.galleryUploadButton.textContent = `Envoi ${index + 1}/${files.length}…`;
-      }
-      const upload = await compressImageUpload(file, "wishlist-gallery", {
-        maxDimension: 900,
-        quality: 0.68,
-      });
-      const result = await apiRequest("/api/gallery-items", {
-        method: "POST",
-        body: {
-          imageUpload: upload,
-          width: upload.width,
-          height: upload.height,
-          sizeKb: upload.sizeKb,
-        },
-      });
-      Object.assign(state, result.appState);
-    }
-
-    await refreshTableData(["gallery"]);
-    showFlash(
-      files.length > 1
-        ? `${formatNumber(files.length, 0)} photos ajoutées à la galerie.`
-        : "Photo ajoutée à la galerie.",
-    );
-  } catch (error) {
-    showFlash(error.message, "error");
-  } finally {
-    if (refs.galleryUploadInput) {
-      refs.galleryUploadInput.value = "";
-    }
-
-    if (refs.galleryUploadButton) {
-      refs.galleryUploadButton.disabled = false;
-      refs.galleryUploadButton.textContent = "Ajouter des photos";
-    }
-  }
-}
-
-async function handleGalleryDelete(galleryItemId) {
-  const confirmed = await openConfirmDialog({
-    title: "Supprimer cette photo ?",
-    message: "La photo sera retirée définitivement de la galerie.",
-    confirmLabel: "Supprimer la photo",
-  });
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
-      method: "DELETE",
-    });
-    Object.assign(state, result.appState);
-    await refreshTableData(["gallery"]);
-    showFlash(result.message);
-  } catch (error) {
-    showFlash(error.message, "error");
-  }
-}
-
-async function handleGalleryTogglePurchased(galleryItemId) {
-  try {
-    const result = await apiRequest(`/api/gallery-items/${galleryItemId}`, {
-      method: "PATCH",
-      body: { togglePurchased: true },
-    });
-    Object.assign(state, result.appState);
-    await refreshTableData(["gallery"]);
     showFlash(result.message);
   } catch (error) {
     showFlash(error.message, "error");
@@ -5904,74 +5774,6 @@ function renderTodayActions() {
     .join("");
 }
 
-function updatePhotoProductHint() {
-  const form = document.querySelector("#photo-product-form");
-  const hint = document.querySelector("#photo-product-hint");
-  const item = getTableRecord("gallery", form?.elements.galleryItemId.value);
-
-  if (!form || !hint || !item) {
-    return;
-  }
-
-  const weightKg = (Number(form.elements.weightG.value) || 0) / 1000;
-  const purchaseEur = Number(item.foundPriceEur || 0);
-  const transportEur = weightKg * Number(state.settings.transportRatePerKgEur || 0);
-  const landedMad = (purchaseEur + transportEur) * Number(state.settings.eurToMad || 0);
-
-  hint.textContent = weightKg
-    ? `Coût estimé au Maroc : ${formatCurrency(landedMad, "MAD")} (achat ${formatCurrency(purchaseEur, "EUR")} + transport ${formatCurrency(transportEur, "EUR")})`
-    : `Prix d'achat repris de la photo : ${formatCurrency(purchaseEur, "EUR")} · quantité ${formatNumber(item.desiredQty ?? 1, 0)}`;
-}
-
-function openPhotoProductModal(galleryItemId) {
-  const item = getTableRecord("gallery", galleryItemId);
-  const form = document.querySelector("#photo-product-form");
-
-  if (!item || !form) {
-    return;
-  }
-
-  form.reset();
-  form.elements.galleryItemId.value = item.id;
-  form.elements.name.value = "";
-  document.querySelector("#photo-product-img").src = item.imageUrl;
-  const error = document.querySelector("#photo-product-error");
-  error.hidden = true;
-  updatePhotoProductHint();
-  openModal("photo-product-modal");
-  form.elements.name.focus();
-}
-
-async function handlePhotoProductSubmit(event) {
-  event.preventDefault();
-  const form = event.target;
-  const error = document.querySelector("#photo-product-error");
-  const submit = form.querySelector('[type="submit"]');
-  error.hidden = true;
-  submit.disabled = true;
-
-  try {
-    const result = await apiRequest(`/api/gallery-items/${form.elements.galleryItemId.value}/to-product`, {
-      method: "POST",
-      body: {
-        name: form.elements.name.value,
-        weightG: Number(form.elements.weightG.value),
-        salePriceMad: Number(form.elements.salePriceMad.value),
-      },
-    });
-    Object.assign(state, result.appState);
-    closeModal("photo-product-modal");
-    navigateToPath("/wishlist");
-    await refreshTableData(["gallery", "wishlist", "products"]);
-    showFlash(result.message);
-  } catch (caught) {
-    error.textContent = caught.message;
-    error.hidden = false;
-  } finally {
-    submit.disabled = false;
-  }
-}
-
 function setTabbarSheet(open) {
   const sheet = document.querySelector("#tabbar-sheet");
   const fab = document.querySelector("#tabbar-fab");
@@ -5989,17 +5791,10 @@ function handleDocumentClick(event) {
   const todayGoButton = event.target.closest("[data-today-go]");
 
   if (todayGoButton) {
-    if (todayGoButton.dataset.todayTab && refs.galleryTable) {
-      refs.galleryTable.dataset.activeTab = todayGoButton.dataset.todayTab;
+    if (todayGoButton.dataset.todayTab) {
+      window.abgGalleryTab = todayGoButton.dataset.todayTab;
     }
     navigateToPath(todayGoButton.dataset.todayGo);
-    return;
-  }
-
-  const galleryToProductButton = event.target.closest("[data-gallery-to-product]");
-
-  if (galleryToProductButton) {
-    openPhotoProductModal(galleryToProductButton.dataset.galleryToProduct);
     return;
   }
 
@@ -6049,7 +5844,6 @@ function handleDocumentClick(event) {
   const bulkClearButton = event.target.closest("[data-bulk-clear]");
 
   if (bulkClearButton) {
-    bulkSelection.gallery.clear();
     bulkSelection.wishlist.clear();
     syncBulkSelectionDom();
     return;
@@ -6059,28 +5853,6 @@ function handleDocumentClick(event) {
 
   if (bulkActionButton) {
     void runBulkAction(bulkActionButton.dataset.bulkAction);
-    return;
-  }
-
-  const galleryTabButton = event.target.closest("[data-gallery-tab]");
-
-  if (galleryTabButton) {
-    refs.galleryTable.dataset.activeTab = galleryTabButton.dataset.galleryTab;
-    bulkSelection.gallery.clear();
-    renderGalleryTable();
-    return;
-  }
-
-  const galleryStepButton = event.target.closest("[data-gallery-step]");
-
-  if (galleryStepButton) {
-    const [id, delta] = galleryStepButton.dataset.galleryStep.split(":");
-    const input = document.querySelector(`[data-gallery-qty-input="${id}"]`);
-
-    if (input) {
-      input.value = String(Math.max(1, (Number.parseInt(input.value, 10) || 1) + Number(delta)));
-      handleGalleryFieldChange({ target: input });
-    }
     return;
   }
 
@@ -6247,20 +6019,6 @@ function handleDocumentClick(event) {
       wishlistQtySaveButton.dataset.wishlistQtySave,
       desiredQty,
     );
-    return;
-  }
-
-  const galleryDeleteButton = event.target.closest("[data-gallery-delete]");
-
-  if (galleryDeleteButton) {
-    void handleGalleryDelete(galleryDeleteButton.dataset.galleryDelete);
-    return;
-  }
-
-  const galleryTogglePurchasedButton = event.target.closest("[data-gallery-toggle-purchased]");
-
-  if (galleryTogglePurchasedButton) {
-    void handleGalleryTogglePurchased(galleryTogglePurchasedButton.dataset.galleryTogglePurchased);
     return;
   }
 
@@ -6619,10 +6377,6 @@ function bindEvents() {
   refs.productForm.addEventListener("submit", handleProductSubmit);
   refs.productCancelButton.addEventListener("click", handleProductCancel);
   refs.productImageFile.addEventListener("change", handleProductImageChange);
-  refs.galleryUploadButton?.addEventListener("click", () => {
-    refs.galleryUploadInput?.click();
-  });
-  refs.galleryUploadInput?.addEventListener("change", handleGalleryUpload);
   refs.productForm.addEventListener("input", handleFormInput);
   refs.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
   refs.purchaseInvoiceFile.addEventListener("change", handlePurchaseInvoiceChange);
@@ -6636,7 +6390,6 @@ function bindEvents() {
   });
 
   document.addEventListener("click", handleDocumentClick);
-  document.addEventListener("change", handleGalleryFieldChange);
   document.querySelectorAll(".table-filters").forEach((form) => {
     const actions = form.querySelector(".table-filter-actions");
 
@@ -6654,16 +6407,6 @@ function bindEvents() {
       toggle.setAttribute("aria-expanded", String(open));
     });
     actions.append(toggle);
-  });
-  document.addEventListener("submit", (event) => {
-    if (event.target.id === "photo-product-form") {
-      void handlePhotoProductSubmit(event);
-    }
-  });
-  document.addEventListener("input", (event) => {
-    if (event.target.closest("#photo-product-form")) {
-      updatePhotoProductHint();
-    }
   });
   document.addEventListener("keydown", handleDocumentKeydown);
   document.addEventListener("change", handleDocumentChange);
@@ -6736,6 +6479,7 @@ async function init() {
   void setupSidebarBrandLogo();
   hoistOverlayLayers();
   bindEvents();
+  bindClassification();
   resetProductForm();
   resetDynamicForm(refs.purchaseForm, "purchase");
   resetDynamicForm(refs.shipmentForm, "shipment");
@@ -6745,6 +6489,7 @@ async function init() {
   setHealth("Connexion...");
 
   try {
+    await enforceFreshLogin();
     await loadSessionWithRetry();
 
     if (state.auth.isAuthenticated) {
@@ -6774,4 +6519,8 @@ window.abg = {
   formatNumber,
   formatCurrency,
   getState: () => state,
+  reload: async () => {
+    await loadAppState();
+    await refreshTableData();
+  },
 };

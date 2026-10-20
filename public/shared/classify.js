@@ -1,6 +1,7 @@
 // Outils partagés (navigateur + serveur) : catégories, classement automatique, lecture des prix.
 
 export const CATEGORIES = [
+  { name: "Semaine d'Action", icon: "⚡", words: "" },
   { name: "Cuisine", icon: "🍳", words: "poele casserole assiette verre tasse mug couvert couteau cuisine plat saladier bol cocotte friteuse mixeur bouilloire grille-pain bocal planche decouper passoire ustensile theiere cafetiere carafe torchon tablier moule cuillere fourchette gourde thermos faitout wok vaisselle service poelon egouttoir epluche rape ouvre-boite airfryer micro-ondes" },
   { name: "Meubles", icon: "🛋️", words: "meuble table chaise tabouret etagere commode armoire bureau canape fauteuil banc bibliotheque buffet coiffeuse porte-manteau desserte console lit sommier tiroir caisson pouf" },
   { name: "Déco", icon: "🕯️", words: "decoration deco bougie cadre vase miroir coussin plaid tableau guirlande lanterne photophore statue horloge pendule fleur plante artificielle tapis rideau couronne figurine sculpture bibelot mural parfum diffuseur" },
@@ -18,6 +19,9 @@ export const CATEGORIES = [
 ];
 
 export const DEFAULT_CATEGORY = "Autres";
+
+/** Les deux boutiques gérées pour l'instant. */
+export const SHOPS = ["Normal", "Action"];
 
 const strip = (value) =>
   String(value || "")

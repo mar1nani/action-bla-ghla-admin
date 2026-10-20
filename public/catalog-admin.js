@@ -403,6 +403,7 @@ document.addEventListener("click", async (event) => {
     const module = await import("/catalog-import.js");
     module.openImport({
       existing: catalog.items,
+      categories: catalog.known.map((entry) => entry.name),
       onDone: () => loadCatalog(true),
       onAdded: () => (catalog.filter.status = "todo"),
     });

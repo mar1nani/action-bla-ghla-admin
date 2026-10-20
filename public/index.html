@@ -636,6 +636,14 @@
                     autocomplete="off"
                   />
                 </label>
+                <label class="field field-compact-sm">
+                  <span>Boutique</span>
+                  <select name="shop" data-class-select="shop-filter" data-auto-submit></select>
+                </label>
+                <label class="field field-compact-sm">
+                  <span>Catégorie</span>
+                  <select name="category" data-class-select="category-filter" data-auto-submit></select>
+                </label>
                 <div class="table-filter-actions">
                   <button class="ghost-button" type="submit">Filtrer</button>
                   <button
@@ -648,6 +656,15 @@
                 </div>
               </div>
             </form>
+            <div id="products-classify" class="classify-bar" hidden>
+              <strong id="products-classify-count"></strong>
+              <label>Boutique
+                <select id="products-classify-shop" data-class-select="shop-bulk"></select>
+              </label>
+              <label>Catégorie
+                <select id="products-classify-category" data-class-select="category-bulk"></select>
+              </label>
+            </div>
             <div class="table-shell">
               <div id="products-table"></div>
             </div>
@@ -688,6 +705,20 @@
                     <input name="minStockAlert" type="number" min="0" step="1" required />
                   </label>
                 </div>
+                <div class="field-row">
+                  <label class="field field-compact-sm">
+                    <span>Boutique</span>
+                    <select name="shop" data-class-select="shop-form"></select>
+                  </label>
+                  <label class="field field-compact-sm">
+                    <span>Catégorie</span>
+                    <select name="category" data-class-select="category-form"></select>
+                  </label>
+                </div>
+                <label class="field" id="product-newcat-field" hidden>
+                  <span>Nouvelle catégorie</span>
+                  <input name="newCategory" type="text" maxlength="40" placeholder="Ex. Salle de bain" autocomplete="off" />
+                </label>
                 <div class="field-row">
                   <label class="field field-compact-sm">
                     <span>Prix d'achat EUR</span>
@@ -1240,29 +1271,7 @@
             <a href="/wishlist-gallery" data-section-link="gallery">Photos</a>
             <a href="/wishlist" data-section-link="wishlist">Produits</a>
           </nav>
-          <article class="panel gallery-panel">
-            <div class="section-head gallery-head">
-              <div>
-                <p class="eyebrow">Inspirations visuelles</p>
-                <h3>Wishlist Gallery</h3>
-                <p class="gallery-sub">Photos repérées en magasin · touche le rond pour sélectionner plusieurs photos.</p>
-              </div>
-              <div class="gallery-toolbar">
-                <input
-                  id="gallery-upload-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                />
-                <button id="gallery-upload-button" class="primary-button gallery-add" type="button">
-                  Ajouter des photos
-                </button>
-              </div>
-            </div>
-            <div id="gallery-table"></div>
-            <div id="gallery-pagination" class="table-pagination"></div>
-          </article>
+          <div id="gallery-root" class="gl-root"></div>
         </section>
 
         <section id="available" class="section">
@@ -1679,5 +1688,6 @@
     <script type="module" src="/app.js"></script>
     <script type="module" src="/pwa.js"></script>
     <script type="module" src="/catalog-admin.js"></script>
+    <script type="module" src="/gallery.js"></script>
   </body>
 </html>

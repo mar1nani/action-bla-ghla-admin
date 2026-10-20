@@ -21,10 +21,13 @@ import {
   getStoreStatus,
   isDatabaseStoreEnabled,
   readStore,
+  readStoreParts,
   updateStore,
+  updateStoreParts,
 } from "./lib/store.js";
 import { registerCatalogAdminRoutes, registerPublicCatalogRoutes } from "./lib/catalog.js";
 import { visionProvider } from "./lib/vision.js";
+import { cleanShop, ensureCategory, registerGalleryRoutes } from "./lib/gallery.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
@@ -38,7 +41,8 @@ const port = process.env.PORT || 3000;
 const SESSION_COOKIE_NAME = "abg_session";
 const CATALOG_VISITOR_COOKIE_NAME = "abg_catalog";
 const ANALYTICS_RETENTION_DAYS = 120;
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+// La connexion ne dure que le temps de la session du navigateur (cookie sans date d'expiration), 12 h maximum.
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 const sessionSecret = resolveSessionSecret();
 
 const orderStatuses = new Set(["brouillon", "confirmee", "livree"]);
@@ -370,7 +374,6 @@ function startSession(response, user) {
   response.setHeader(
     "Set-Cookie",
     createCookie(SESSION_COOKIE_NAME, sessionToken, {
-      maxAge: SESSION_MAX_AGE_SECONDS,
       secure: SECURE_COOKIES,
     }),
   );
@@ -401,14 +404,6 @@ function buildTodoCounts(store) {
 }
 
 // Ne supprime le fichier d'une photo que si aucun produit ne l'utilise (photo convertie en produit).
-async function removeGalleryImage(store, imageUrl) {
-  if (!imageUrl || (store.products ?? []).some((product) => product.imageUrl === imageUrl)) {
-    return;
-  }
-
-  await removeProductImage(imageUrl);
-}
-
 function buildPublicState(store, request) {
   const state = buildAppState(store);
   const user = getAuthenticatedUser(request, store);
@@ -514,15 +509,36 @@ function matchesFilterDateRange(value, query) {
   return true;
 }
 
+// Filtre boutique / catégorie ("none" = non classé).
+function matchesClassification(entry, query) {
+  const shop = String(query.shop ?? "").trim();
+  const category = String(query.category ?? "").trim();
+
+  if (shop && (shop === "none" ? entry.shop : entry.shop !== shop)) {
+    return false;
+  }
+
+  if (category && (category === "none" ? entry.category : entry.category !== category)) {
+    return false;
+  }
+
+  return true;
+}
+
 function filterProducts(items, query) {
-  return items.filter((product) => matchesFilterSearch(query, product.name));
+  return items.filter(
+    (product) => matchesClassification(product, query) && matchesFilterSearch(query, product.name, product.category, product.shop),
+  );
 }
 
 function filterWishlist(items, query) {
   return items.filter((entry) =>
+    matchesClassification(entry, query) &&
     matchesFilterSearch(
       query,
       entry.name,
+      entry.category,
+      entry.shop,
       entry.createdByName,
       entry.createdByLogin,
       entry.notes,
@@ -614,6 +630,8 @@ function buildWishlistItems(state, store) {
         createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
         notes: entry.notes || "",
         name: product.name,
+        category: product.category || "",
+        shop: product.shop || "",
         imageUrl: product.imageUrl || "",
         weightKg: product.weightKg,
         defaultPurchasePriceEur: product.defaultPurchasePriceEur,
@@ -622,26 +640,6 @@ function buildWishlistItems(state, store) {
       };
     })
     .filter(Boolean)
-    .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
-}
-
-function buildGalleryItems(store) {
-  return (store.galleryItems ?? [])
-    .map((entry) => ({
-      id: entry.id,
-      imageUrl: entry.imageUrl || "",
-      createdAt: entry.createdAt || new Date().toISOString(),
-      createdByLogin: entry.createdByLogin || "",
-      createdByName: entry.createdByName || entry.createdByLogin || "Équipe",
-      desiredQty: Math.max(1, Number(entry.desiredQty || 1)),
-      foundPriceEur: Math.max(0, Number(entry.foundPriceEur || 0)),
-      width: Math.max(0, Number(entry.width || 0)),
-      height: Math.max(0, Number(entry.height || 0)),
-      sizeKb: Math.max(0, Number(entry.sizeKb || 0)),
-      purchased: Boolean(entry.purchased),
-      note: entry.note || "",
-    }))
-    .filter((entry) => entry.imageUrl)
     .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
 }
 
@@ -790,7 +788,8 @@ function requireAuthenticatedApi(request, response, next) {
     return next();
   }
 
-  readStore()
+  // Seuls les comptes sont nécessaires pour vérifier la connexion : on évite de relire tout le document.
+  readStoreParts(["users"])
     .then((store) => {
       const user = getAuthenticatedUser(request, store);
 
@@ -995,24 +994,6 @@ async function removeProductImage(imageUrl) {
   const fileName = path.basename(imageUrl);
   const filePath = path.join(uploadsDirectory, fileName);
   await fs.rm(filePath, { force: true });
-}
-
-async function persistGalleryImage(upload, galleryItemId) {
-  const parsedUpload = parseImageUploadData(upload, "la photo galerie", {
-    required: true,
-    maxBase64Length: 4_000_000,
-  });
-
-  if (isDatabaseStoreEnabled()) {
-    return parsedUpload.dataUrl;
-  }
-
-  await fs.mkdir(uploadsDirectory, { recursive: true });
-
-  const relativePath = `/uploads/gallery-${galleryItemId}.${parsedUpload.extension}`;
-  const filePath = path.join(uploadsDirectory, `gallery-${galleryItemId}.${parsedUpload.extension}`);
-  await fs.writeFile(filePath, Buffer.from(parsedUpload.base64, "base64"));
-  return relativePath;
 }
 
 function getProductMetricsMap(store) {
@@ -1636,7 +1617,7 @@ app.get("/api/health", (_request, response) => {
 app.get(
   "/api/auth/session",
   asyncRoute(async (request, response) => {
-    const store = await readStore();
+    const store = await readStoreParts(["users"]);
     const storeStatus = getStoreStatus();
     const user = getAuthenticatedUser(request, store);
     const authRecoveryState = getAuthRecoveryState(storeStatus, store);
@@ -1696,7 +1677,7 @@ app.post(
 app.post(
   "/api/auth/login",
   asyncRoute(async (request, response) => {
-    const store = await readStore();
+    const store = await readStoreParts(["users"]);
     const authRecoveryState = getAuthRecoveryState(getStoreStatus(), store);
 
     if (authRecoveryState.authUnavailable) {
@@ -1761,6 +1742,13 @@ registerCatalogAdminRoutes(app, {
   updateStore,
   getAuthenticatedUser,
   createNotFoundError,
+});
+
+registerGalleryRoutes(app, {
+  asyncRoute,
+  getAuthenticatedUser,
+  createNotFoundError,
+  assertUniqueProductName,
 });
 
 app.get(
@@ -1871,17 +1859,6 @@ app.get(
     const state = buildPublicState(store, request);
     response.json({
       items: filterWishlist(buildWishlistItems(state, store), request.query),
-      pagination: null,
-    });
-  }),
-);
-
-app.get(
-  "/api/gallery-items",
-  asyncRoute(async (_request, response) => {
-    const store = await readStore();
-    response.json({
-      items: buildGalleryItems(store),
       pagination: null,
     });
   }),
@@ -2014,6 +1991,8 @@ app.post(
           min: 0,
         }),
         imageUrl: "",
+        category: ensureCategory(store, request.body.category),
+        shop: cleanShop(request.body.shop),
         notes: optionalString(request.body.notes),
         createdAt: new Date().toISOString(),
       };
@@ -2038,6 +2017,41 @@ app.post(
 
     response.status(201).json({
       message: "Produit ajouté.",
+      appState: buildPublicState(nextStore, request),
+    });
+  }),
+);
+
+app.post(
+  "/api/products/bulk",
+  asyncRoute(async (request, response) => {
+    const ids = new Set(Array.isArray(request.body.ids) ? request.body.ids.map(String) : []);
+    const action = String(request.body.action ?? "");
+
+    if (!ids.size || !["category", "shop"].includes(action)) {
+      throw createValidationError("Sélectionne des produits et une action valide.");
+    }
+
+    let affected = 0;
+    const nextStore = await updateStore((store) => {
+      const category = action === "category" ? ensureCategory(store, request.body.category) : "";
+      const shop = action === "shop" ? cleanShop(request.body.shop) : "";
+
+      for (const product of store.products) {
+        if (!ids.has(product.id)) continue;
+
+        if (action === "category") product.category = category;
+        else product.shop = shop;
+
+        product.updatedAt = new Date().toISOString();
+        affected += 1;
+      }
+
+      return store;
+    });
+
+    response.json({
+      message: action === "category" ? `${affected} produit(s) classé(s) dans la catégorie.` : `${affected} produit(s) classé(s) par boutique.`,
       appState: buildPublicState(nextStore, request),
     });
   }),
@@ -2070,6 +2084,8 @@ app.put(
         { min: 0 },
       );
       product.notes = optionalString(request.body.notes);
+      product.category = ensureCategory(store, request.body.category);
+      product.shop = cleanShop(request.body.shop);
       product.updatedAt = new Date().toISOString();
 
       if (request.body.imageUpload?.dataUrl) {
@@ -2168,94 +2184,6 @@ app.post(
   }),
 );
 
-app.post(
-  "/api/gallery-items",
-  asyncRoute(async (request, response) => {
-    const nextStore = await updateStore(async (store) => {
-      const user = getAuthenticatedUser(request, store);
-      const galleryItem = {
-        id: createId("gal"),
-        imageUrl: "",
-        createdAt: new Date().toISOString(),
-        createdByLogin: user?.login || "",
-        createdByName: user?.displayName || user?.login || "Équipe",
-        desiredQty: 1,
-        foundPriceEur: 0,
-        width: requireInteger(request.body.width ?? 0, "Largeur image", { min: 1 }),
-        height: requireInteger(request.body.height ?? 0, "Hauteur image", { min: 1 }),
-        sizeKb: requireInteger(request.body.sizeKb ?? 0, "Taille image", { min: 1 }),
-      };
-
-      galleryItem.imageUrl = await persistGalleryImage(request.body.imageUpload, galleryItem.id);
-      store.galleryItems = store.galleryItems ?? [];
-      store.galleryItems.push(galleryItem);
-      return store;
-    });
-
-    response.status(201).json({
-      message: "Photo ajoutée à la galerie.",
-      appState: buildPublicState(nextStore, request),
-    });
-  }),
-);
-
-app.post(
-  "/api/gallery-items/:galleryItemId/to-product",
-  asyncRoute(async (request, response) => {
-    const nextStore = await updateStore((store) => {
-      const user = getAuthenticatedUser(request, store);
-      const galleryIndex = (store.galleryItems ?? []).findIndex(
-        (entry) => entry.id === request.params.galleryItemId,
-      );
-
-      if (galleryIndex === -1) {
-        throw createNotFoundError("Photo galerie introuvable.");
-      }
-
-      const photo = store.galleryItems[galleryIndex];
-      const productName = requireString(request.body.name, "Nom du produit");
-      assertUniqueProductName(store, productName);
-
-      const product = {
-        id: createId("prd"),
-        name: productName,
-        weightKg: requireNumber(request.body.weightG, "Poids (g)", { min: 1 }) / 1000,
-        defaultPurchasePriceEur: Math.max(0, Number(photo.foundPriceEur || 0)),
-        defaultSalePriceMad: requireNumber(request.body.salePriceMad, "Prix de vente MAD", {
-          min: 0,
-        }),
-        minStockAlert: store.settings?.lowStockDefault ?? 2,
-        imageUrl: photo.imageUrl,
-        notes: optionalString(photo.note),
-        createdAt: new Date().toISOString(),
-      };
-
-      store.products.push(product);
-      store.wishlist = store.wishlist ?? [];
-      store.wishlist.push({
-        id: createId("wish"),
-        productId: product.id,
-        desiredQty: Math.max(1, Number(photo.desiredQty || 1)),
-        purchased: Boolean(photo.purchased),
-        purchasedAt: photo.purchased ? new Date().toISOString() : null,
-        createdAt: new Date().toISOString(),
-        createdByLogin: user?.login || photo.createdByLogin || "",
-        createdByName: user?.displayName || user?.login || photo.createdByName || "Équipe",
-        notes: "",
-      });
-
-      // La photo devient l'image du produit : on la retire de la galerie sans supprimer le fichier.
-      store.galleryItems.splice(galleryIndex, 1);
-      return store;
-    });
-
-    response.status(201).json({
-      message: "Produit créé et ajouté à « Produits à acheter ».",
-      appState: buildPublicState(nextStore, request),
-    });
-  }),
-);
-
 const BULK_ACTIONS = new Set(["purchase", "unpurchase", "delete"]);
 
 function readBulkRequest(body) {
@@ -2277,48 +2205,6 @@ function readBulkRequest(body) {
 
   return { ids, action: body.action };
 }
-
-app.post(
-  "/api/gallery-items/bulk",
-  asyncRoute(async (request, response) => {
-    const { ids, action } = readBulkRequest(request.body);
-    let affected = 0;
-
-    const nextStore = await updateStore(async (store) => {
-      const selected = new Set(ids);
-      const items = store.galleryItems ?? [];
-
-      if (action === "delete") {
-        const removed = items.filter((entry) => selected.has(entry.id));
-        affected = removed.length;
-        store.galleryItems = items.filter((entry) => !selected.has(entry.id));
-        for (const entry of removed) {
-          await removeGalleryImage(store, entry.imageUrl);
-        }
-        return store;
-      }
-
-      for (const entry of items) {
-        if (selected.has(entry.id)) {
-          entry.purchased = action === "purchase";
-          affected += 1;
-        }
-      }
-      return store;
-    });
-
-    const labels = {
-      purchase: "marquée(s) comme achetée(s)",
-      unpurchase: "remise(s) à acheter",
-      delete: "supprimée(s)",
-    };
-    response.json({
-      message: `${affected} photo(s) ${labels[action]}.`,
-      affected,
-      appState: buildPublicState(nextStore, request),
-    });
-  }),
-);
 
 app.post(
   "/api/wishlist/bulk",
@@ -2360,58 +2246,6 @@ app.post(
 );
 
 app.patch(
-  "/api/gallery-items/:galleryItemId",
-  asyncRoute(async (request, response) => {
-    const nextStore = await updateStore((store) => {
-      const galleryItem = (store.galleryItems ?? []).find(
-        (entry) => entry.id === request.params.galleryItemId,
-      );
-
-      if (!galleryItem) {
-        throw createNotFoundError("Photo galerie introuvable.");
-      }
-
-      if (request.body.desiredQty !== undefined) {
-        galleryItem.desiredQty = requireInteger(request.body.desiredQty, "Quantité à acheter", {
-          min: 1,
-        });
-      }
-
-      if (request.body.foundPriceEur !== undefined) {
-        galleryItem.foundPriceEur = requireNumber(
-          request.body.foundPriceEur,
-          "Prix magasin EUR",
-          { min: 0 },
-        );
-      }
-
-      if (request.body.note !== undefined) {
-        galleryItem.note = String(request.body.note).slice(0, 500);
-      }
-
-      if (request.body.togglePurchased) {
-        galleryItem.purchased = !galleryItem.purchased;
-      }
-
-      return store;
-    });
-
-    const updatedItem = (nextStore.galleryItems ?? []).find(
-      (e) => e.id === request.params.galleryItemId,
-    );
-    const message = request.body.togglePurchased
-      ? updatedItem?.purchased
-        ? "Marqué comme acheté."
-        : "Marqué comme non acheté."
-      : "Galerie mise à jour.";
-    response.json({
-      message,
-      appState: buildPublicState(nextStore, request),
-    });
-  }),
-);
-
-app.patch(
   "/api/wishlist/:wishlistId",
   asyncRoute(async (request, response) => {
     const nextStore = await updateStore((store) => {
@@ -2445,30 +2279,6 @@ app.patch(
 
     response.json({
       message: "Wishlist mise à jour.",
-      appState: buildPublicState(nextStore, request),
-    });
-  }),
-);
-
-app.delete(
-  "/api/gallery-items/:galleryItemId",
-  asyncRoute(async (request, response) => {
-    const nextStore = await updateStore(async (store) => {
-      const galleryIndex = (store.galleryItems ?? []).findIndex(
-        (entry) => entry.id === request.params.galleryItemId,
-      );
-
-      if (galleryIndex === -1) {
-        throw createNotFoundError("Photo galerie introuvable.");
-      }
-
-      const [galleryItem] = store.galleryItems.splice(galleryIndex, 1);
-      await removeGalleryImage(store, galleryItem?.imageUrl);
-      return store;
-    });
-
-    response.json({
-      message: "Photo retirée de la galerie.",
       appState: buildPublicState(nextStore, request),
     });
   }),

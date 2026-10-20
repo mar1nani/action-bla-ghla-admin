@@ -7,7 +7,7 @@ const esc = (value) => bridge().escapeHtml(value ?? "");
 
 const session = { items: [], existing: [], onDone: null, onAdded: null, busy: false, token: 0, photoJob: Promise.resolve(), photoText: "", sourceLabel: "" };
 const MAX_IMAGES = 10;
-const KNOWN = ["Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Alimentation", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
+let KNOWN = ["Semaine d'Action", "Cuisine", "Meubles", "Déco", "Salle de bain", "Entretien", "Rangement", "Textile & linge", "Jardin & extérieur", "Enfants & jouets", "Papeterie & loisirs", "Alimentation", "Bricolage", "Électro & high-tech", "Mode & accessoires", "Autres"];
 
 const normalize = (value) =>
   String(value || "")
@@ -434,7 +434,8 @@ function resetUi() {
   setStatus("");
 }
 
-export function openImport({ existing = [], onDone, onAdded } = {}) {
+export function openImport({ existing = [], categories = [], onDone, onAdded } = {}) {
+  if (categories.length) KNOWN = categories;
   session.existing = existing;
   session.onDone = onDone;
   session.onAdded = onAdded;

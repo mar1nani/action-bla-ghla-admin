@@ -1706,3 +1706,125 @@ body {
 
 .import-photo-add { display: grid; place-items: center; height: 100%; padding: 8px; color: var(--brand-blue); font-weight: 800; font-size: 0.8rem; text-align: center; cursor: pointer; }
 .import-pane { margin-bottom: 10px; }
+
+/* ==========================================================================
+   Photos à acheter — page simple (gallery.js)
+   ========================================================================== */
+.gl-root { display: grid; gap: 12px; padding-bottom: 96px; }
+.gl-loading { padding: 40px 0; text-align: center; color: var(--ink-soft); font-weight: 700; }
+
+.gl-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gl-head h3 { margin: 2px 0 0; font-family: "Sora", sans-serif; font-size: 1.35rem; color: var(--ink); }
+.gl-head .eyebrow { margin: 0; }
+.gl-add { display: inline-flex; align-items: center; gap: 8px; }
+.gl-add svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+
+.gl-banner { padding: 10px 14px; border-radius: 14px; background: #fff7dd; color: #7a5a00; font-size: 0.86rem; font-weight: 700; }
+
+.gl-tabs { display: flex; gap: 4px; width: 100%; max-width: 420px; padding: 4px; border-radius: 16px; background: #fff; border: 1px solid var(--hairline); }
+.gl-tab { flex: 1; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--ink-soft); font: inherit; font-weight: 800; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.gl-tab b { margin-left: 4px; font-weight: 800; opacity: 0.7; }
+.gl-tab.is-active { background: var(--brand-navy); color: #fff; }
+
+.gl-filters { display: grid; gap: 8px; }
+.gl-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.gl-row::-webkit-scrollbar { display: none; }
+.gl-filter { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--hairline); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: 0.86rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background 0.18s, color 0.18s, border-color 0.18s; }
+.gl-filter b { font-weight: 800; color: var(--ink-soft); }
+.gl-filter.is-active { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.gl-filter.is-active b { color: rgba(255, 255, 255, 0.85); }
+.gl-filter--add { border-style: dashed; color: var(--brand-blue); }
+.gl-newcat { flex: none; display: inline-flex; gap: 6px; }
+.gl-newcat input { width: 170px; padding: 8px 12px; border: 1px solid var(--brand-blue); border-radius: 999px; font: inherit; font-size: 0.86rem; background: #fff; }
+.gl-newcat button { padding: 8px 14px; border: 0; border-radius: 999px; background: var(--brand-blue); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.gl-newcat--sheet { display: flex; margin-top: 8px; }
+.gl-newcat--sheet[hidden] { display: none; }
+.gl-newcat--sheet input { flex: 1; border-radius: 12px; }
+.gl-newcat--sheet button { border-radius: 12px; }
+
+.gl-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gl-count { color: var(--ink-soft); font-size: 0.84rem; font-weight: 700; }
+
+.gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.gl-tile { position: relative; overflow: hidden; border-radius: 18px; background: #fff; border: 2px solid transparent; box-shadow: 0 10px 24px -18px rgba(8, 52, 60, 0.6); transition: border-color 0.18s, transform 0.18s var(--ease-out); content-visibility: auto; contain-intrinsic-size: 220px; }
+.gl-tile.is-selected { border-color: var(--brand-blue); transform: scale(0.98); }
+.gl-tile.is-bought .gl-photo { opacity: 0.55; }
+.gl-photo { display: block; width: 100%; aspect-ratio: 1 / 1; padding: 0; border: 0; background: var(--surface-2); cursor: pointer; }
+.gl-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gl-placeholder { display: grid; place-items: center; width: 100%; height: 100%; padding: 8px; color: var(--ink-soft); font-size: 0.8rem; font-weight: 700; text-align: center; }
+.gl-placeholder.is-loading { animation: gl-pulse 1.3s ease-in-out infinite; }
+@keyframes gl-pulse { 50% { opacity: 0.45; } }
+.gl-done { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #1faa59; color: #fff; }
+.gl-done svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.gl-meta { display: grid; gap: 4px; padding: 8px 10px 10px; }
+.gl-chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.gl-chip { padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); font-size: 0.72rem; font-weight: 800; }
+.gl-chip--action { background: #e3f6f5; color: var(--brand-blue); }
+.gl-chip--normal { background: #fff0cc; color: #8a6100; }
+.gl-price { font-family: "Sora", sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--ink); }
+
+/* Fiche d'une photo */
+body.gl-sheet-open { overflow: hidden; }
+.gl-sheet { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; }
+.gl-sheet[hidden] { display: none; }
+.gl-sheet-backdrop { position: absolute; inset: 0; background: rgba(4, 28, 34, 0.55); backdrop-filter: blur(3px); }
+.gl-sheet-card { position: relative; width: min(560px, 100%); max-height: 92vh; overflow-y: auto; border-radius: 26px 26px 0 0; background: #fff; box-shadow: 0 -20px 50px -20px rgba(4, 28, 34, 0.6); animation: gl-up 0.3s var(--ease-out) both; padding-bottom: var(--safe-bottom); }
+@keyframes gl-up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.gl-sheet-x { position: absolute; top: 12px; right: 12px; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; background: rgba(8, 48, 58, 0.6); color: #fff; cursor: pointer; }
+.gl-sheet-x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+.gl-sheet-photo { display: block; width: 100%; height: 38vh; min-height: 200px; padding: 0; border: 0; background: var(--surface-2); cursor: zoom-in; }
+.gl-sheet-photo img { width: 100%; height: 100%; object-fit: contain; }
+.gl-sheet-body { display: grid; gap: 14px; padding: 16px 18px 20px; }
+.gl-field { display: grid; gap: 6px; }
+.gl-field > span { color: var(--ink-soft); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.gl-field select, .gl-field textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 14px; background: var(--surface-2); color: var(--ink); font: inherit; }
+.gl-field textarea { resize: vertical; }
+.gl-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gl-seg { display: flex; gap: 6px; }
+.gl-seg button { flex: 1; padding: 12px; border: 2px solid var(--hairline); border-radius: 14px; background: #fff; color: var(--ink); font: inherit; font-weight: 800; cursor: pointer; transition: background 0.18s, border-color 0.18s, color 0.18s; }
+.gl-seg button.is-active { border-color: var(--brand-blue); background: var(--brand-blue); color: #fff; }
+.gl-total { min-height: 1.2em; margin: -4px 0 0; color: var(--ink-soft); font-size: 0.92rem; }
+.gl-total strong { color: var(--ink); font-family: "Sora", sans-serif; }
+.gl-actions { display: grid; gap: 8px; }
+.gl-act { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 0; border-radius: 16px; font: inherit; font-weight: 800; cursor: pointer; }
+.gl-act svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.gl-act--buy { background: #1faa59; color: #fff; }
+.gl-act--undo { background: #fff0cc; color: #8a6100; }
+.gl-act--ghost { background: var(--surface-2); color: var(--ink); }
+.gl-act--danger { background: #fdebee; color: #c0213c; }
+
+/* Sélecteur boutique / catégorie au-dessus de la barre groupée */
+.bulk-bar .gl-picker { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-radius: 18px; background: rgba(8, 48, 58, 0.97); box-shadow: 0 20px 40px -14px rgba(4, 28, 34, 0.6); }
+.bulk-bar .gl-picker[hidden] { display: none; }
+.bulk-bar .gl-picker button { flex: 1; padding: 12px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.14); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.bulk-bar .gl-picker select { width: 100%; padding: 12px; border: 0; border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-weight: 700; }
+
+@media (min-width: 720px) {
+  .gl-sheet { align-items: center; }
+  .gl-sheet-card { border-radius: 26px; max-height: 88vh; }
+}
+@media (max-width: 420px) {
+  .gl-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gl-sheet-card, .gl-placeholder.is-loading { animation: none; }
+}
+
+/* Catégorie / boutique sur les produits */
+.class-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.class-chip { padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); font-size: 0.72rem; font-weight: 800; }
+.class-chip--action { background: #e3f6f5; color: var(--brand-blue); }
+.class-chip--normal { background: #fff0cc; color: #8a6100; }
+.classify-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; border-radius: 16px; background: var(--brand-navy); color: #fff; }
+.classify-bar[hidden] { display: none; }
+.classify-bar strong { margin-right: auto; font-family: "Sora", sans-serif; font-size: 0.95rem; }
+.classify-bar label { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; }
+.classify-bar select { padding: 9px 12px; border: 0; border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-weight: 700; }
+
+/* La bannière « Installer l'app » ne doit pas masquer la barre d'actions groupées. */
+body.has-bulk-bar .install-banner,
+body.gl-sheet-open .install-banner { display: none; }
+@media (max-width: 767px) {
+  .bulk-bar .bulk-btn.gl-compact { width: 46px; padding: 0; justify-content: center; }
+  .bulk-bar .bulk-btn.gl-compact span { display: none; }
+}

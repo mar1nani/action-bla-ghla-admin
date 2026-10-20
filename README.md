@@ -121,12 +121,19 @@ Fichiers : `public/manifest.webmanifest`, `public/sw.js` (service worker), `publ
 `public/pwa.js` (enregistrement + invitation à installer), icônes dans `public/icons/` et splash iOS dans `public/splash/`.
 Le service worker ne met jamais `/api` en cache. Pour forcer une mise à jour du cache, change `VERSION` dans `public/sw.js`.
 
-## Wishlist Gallery : actions groupées
+## Photos à acheter (galerie), catégories et boutiques
 
-Dans la galerie (et la wishlist produits), touche le rond en haut à gauche d'une carte pour sélectionner
-plusieurs éléments. Une barre flottante propose : **Acheté**, **À acheter** (onglet Acheté) et **Supprimer**.
-API : `POST /api/gallery-items/bulk` et `POST /api/wishlist/bulk` avec `{ ids: [...], action: "purchase" | "unpurchase" | "delete" }`.
-Aucune migration de base : les données restent dans le document JSON existant.
+- Page simple : grille de miniatures, onglets **À acheter / Acheté**, filtres par **boutique** (Normal, Action) et par **catégorie**,
+  fiche au toucher (quantité, prix, note, boutique, catégorie, achat auto-enregistrés), sélection multiple (Acheté, Boutique, Catégorie, Supprimer).
+- Les catégories par défaut (dont « Semaine d'Action ») se complètent avec des catégories personnalisées (`settings.customCategories`),
+  partagées par les photos, les produits et le catalogue : `GET/POST /api/categories`.
+- Produits : champs `category` et `shop` (formulaire, filtres, classement groupé `POST /api/products/bulk`).
+- Performance : la liste (`GET /api/gallery-items`) ne renvoie aucune image ; les photos sont dans la table `app_images` et servies en miniature
+  via `/media/<id>?w=360`. Les anciennes photos stockées dans le document principal sont déplacées automatiquement, par lots
+  (`POST /api/gallery-items/migrate-images`). Avant cela, une copie de sécurité du document est créée une seule fois dans la table
+  `app_store_backups` (créée automatiquement).
+- Connexion : le cookie de session expire à la fermeture du navigateur (12 h max) et le site redemande le mot de passe à chaque nouvelle ouverture
+  (nouvel onglet, application relancée).
 
 ## Déploiement sur Vercel
 
